@@ -23,6 +23,9 @@ struct spr{
   lval** cell;
 };
 
+#define lval_sexpr_count(x) (x->value.list->count)
+#define lval_sexpr_cell(x) (x->value.list->cell)
+
 typedef struct spr sexpr;
 
 lval* lval_num(long x);

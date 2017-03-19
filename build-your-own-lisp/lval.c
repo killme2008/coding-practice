@@ -65,25 +65,25 @@ void lval_del(lval* v) {
 }
 
 lval* lval_add(lval* v, lval* x) {
-  v->value.list->count++;
-  v->value.list->cell = realloc(v->value.list->cell, sizeof(lval*) * v->value.list->count);
-  v->value.list->cell[v->value.list->count-1] = x;
+  lval_sexpr_count(v)++;
+  lval_sexpr_cell(v) = realloc(lval_sexpr_cell(v), sizeof(lval*) * lval_sexpr_count(v));
+  lval_sexpr_cell(v)[lval_sexpr_count(v)-1] = x;
   return v;
 }
 
 lval* lval_pop(lval* v, int i) {
   /* Find the item at "i" */
-  lval* x = v->value.list->cell[i];
+  lval* x = lval_sexpr_cell(v)[i];
 
   /* Shift memory after the item at "i" over the top */
-  memmove(&v->value.list->cell[i], &v->value.list->cell[i+1],
-          sizeof(lval*) * (v->value.list->count-i-1));
+  memmove(&lval_sexpr_cell(v)[i], &lval_sexpr_cell(v)[i+1],
+          sizeof(lval*) * (lval_sexpr_count(v)-i-1));
 
   /* Decrease the count of items in the list */
-  v->value.list->count--;
+  lval_sexpr_count(v)--;
 
   /* Reallocate the memory used */
-  v->value.list->cell = realloc(v->value.list->cell, sizeof(lval*) * v->value.list->count);
+  lval_sexpr_cell(v) = realloc(lval_sexpr_cell(v), sizeof(lval*) * lval_sexpr_count(v));
   return x;
 }
 
@@ -97,13 +97,13 @@ void lval_print(lval* v);
 
 void lval_expr_print(lval* v, char open, char close) {
   putchar(open);
-  for (int i = 0; i < v->value.list->count; i++) {
+  for (int i = 0; i < lval_sexpr_count(v); i++) {
 
     /* Print Value contained within */
-    lval_print(v->value.list->cell[i]);
+    lval_print(lval_sexpr_cell(v)[i]);
 
     /* Don't print trailing space if last element */
-    if (i != (v->value.list->count-1)) {
+    if (i != (lval_sexpr_count(v)-1)) {
       putchar(' ');
     }
   }

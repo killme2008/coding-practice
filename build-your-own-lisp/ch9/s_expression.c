@@ -53,20 +53,20 @@ lval* lval_eval(lval* v);
 lval* lval_eval_sexpr(lval* v) {
 
   /* Evaluate Children */
-  for (int i = 0; i < v->value.list->count; i++) {
-    v->value.list->cell[i] = lval_eval(v->value.list->cell[i]);
+  for (int i = 0; i < lval_sexpr_count(v); i++) {
+    lval_sexpr_cell(v)[i] = lval_eval(lval_sexpr_cell(v)[i]);
   }
 
   /* Error Checking */
-  for (int i = 0; i < v->value.list->count; i++) {
-    if (v->value.list->cell[i]->type == LVAL_ERR) { return lval_take(v, i); }
+  for (int i = 0; i < lval_sexpr_count(v); i++) {
+    if (lval_sexpr_cell(v)[i]->type == LVAL_ERR) { return lval_take(v, i); }
   }
 
   /* Empty Expression */
-  if (v->value.list->count == 0) { return v; }
+  if (lval_sexpr_count(v) == 0) { return v; }
 
   /* Single Expression */
-  if (v->value.list->count == 1) { return lval_take(v, 0); }
+  if (lval_sexpr_count(v) == 1) { return lval_take(v, 0); }
 
   /* Ensure First Element is Symbol */
   lval* f = lval_pop(v, 0);
