@@ -66,17 +66,23 @@ lval* lval_qexpr(void) {
   return v;
 }
 
-lval* lval_fun(lbuiltin func) {
+lval* lval_fun(const char* name, lbuiltin func) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_FUN;
-  v->value.fun = func;
+  v->value.fn = malloc(sizeof(func));
+  v->value.fn->fun = func;
+  v->value.fn->name = malloc(sizeof(strlen(name)+1));
+  strcpy(v->value.fn->name, name);
   return v;
 }
 
 void lval_del(lval* v) {
   switch(v->type){
-  case LVAL_FUN:
   case LVAL_NUM: break;
+  case LVAL_FUN:
+    free(v->value.fn->name);
+    free(v->value.fn);
+    break;
   case LVAL_ERR: free(v->value.err); break;
   case LVAL_SYM: free(v->value.sym); break;
   case LVAL_QEXPR:
@@ -136,7 +142,7 @@ void lval_expr_print(lval* v, char open, char close) {
 
 void lval_print(lval* v) {
   switch (v->type) {
-  case LVAL_FUN:   printf("<function>"); break;
+  case LVAL_FUN:   printf("<function '%s'>", v->value.fn->name); break;
   case LVAL_NUM:   printf("%li", v->value.num); break;
   case LVAL_ERR:   printf("Error: %s", v->value.err); break;
   case LVAL_SYM:   printf("%s", v->value.sym); break;
@@ -157,7 +163,10 @@ lval* lval_copy(lval* v) {
     x->value.num = v->value.num;
     break;
   case LVAL_FUN:
-    x->value.fun = v->value.fun;
+    x->value.fn = malloc(sizeof(func));
+    x->value.fn->fun = v->value.fn->fun;
+    x->value.fn->name = malloc(strlen(v->value.fn->name)+1);
+    strcpy(x->value.fn->name, v->value.fn->name);
     break;
   case LVAL_ERR:
     x->value.err = malloc(strlen(v->value.err) + 1);

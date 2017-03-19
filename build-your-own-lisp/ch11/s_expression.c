@@ -168,6 +168,14 @@ lval* builtin_len(lenv* e, lval* a) {
   return x;
 }
 
+lval* builtin_exit(lenv* e, lval* a) {
+  LASSERT_NUM("exit", a, 1);
+  LASSERT_TYPE("exit", a, 0, LVAL_NUM);
+
+  printf("Byte.\n");
+  exit(lval_sexpr_cell(a)[0]->value.num);
+}
+
 lval* builtin_def(lenv* e, lval* a) {
   LASSERT_TYPE("def", a, 0, LVAL_QEXPR);
 
@@ -219,7 +227,7 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
   }
 
   /* If so call function to get result */
-  lval* result = f->value.fun(e, v);
+  lval* result = f->value.fn->fun(e, v);
   lval_del(f);
   return result;
 }
@@ -269,9 +277,9 @@ lval* lval_read(mpc_ast_t* t) {
   return x;
 }
 
-void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
+void lenv_add_builtin(lenv* e, const char* name, lbuiltin func) {
   lval* k = lval_sym(name);
-  lval* v = lval_fun(func);
+  lval* v = lval_fun(name, func);
   lenv_put(e, k, v);
   /* remember to delete k and v*/
   lval_del(k); lval_del(v);
@@ -294,8 +302,11 @@ void lenv_add_builtins(lenv* e) {
   lenv_add_builtin(e, "*", builtin_mul);
   lenv_add_builtin(e, "/", builtin_div);
 
-  /* define */
+  /* Environments */
   lenv_add_builtin(e, "def", builtin_def);
+
+  /* Core */
+  lenv_add_builtin(e, "exit", builtin_exit);
 }
 
 int main(int argc, char** argv) {
@@ -319,7 +330,7 @@ int main(int argc, char** argv) {
             Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
 
   puts("Lispy Version 0.0.0.0.5");
-  puts("Press Ctrl+c to Exit\n");
+  puts("Press Ctrl+c or enter 'exit int' to Exit\n");
 
   lenv* e = lenv_new();
   lenv_add_builtins(e);
