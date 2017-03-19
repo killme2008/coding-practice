@@ -1,3 +1,4 @@
+#include "../mpc/mpc.h"
 #include "../readline.h"
 
 /* Create Enumeration of Possible Error Types */

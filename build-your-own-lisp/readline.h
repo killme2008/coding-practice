@@ -1,4 +1,5 @@
-#include "mpc/mpc.h"
+#ifndef READLINE_H
+#define READLINE_H
 
 #ifdef _WIN32
 
@@ -22,4 +23,6 @@ void add_history(char* unused) {}
 #else
 #include <editline/readline.h>
 #include <editline/history.h>
+#endif
+
 #endif
