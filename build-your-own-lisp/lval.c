@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "lval.h"
+#include <stdarg.h>
 
 lval* lval_num(long x) {
   lval* v = malloc(sizeof(lval));
@@ -11,11 +12,17 @@ lval* lval_num(long x) {
   return v;
 }
 
-lval* lval_error(const char* e) {
+lval* lval_error(const char* fmt, ...) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_ERR;
-  v->value.err = malloc(strlen(e) + 1);
-  strcpy(v->value.err, e);
+
+  va_list va;
+  va_start(va, fmt);
+  v->value.err = malloc(512);
+  vsnprintf(v->value.err, 511, fmt, va);
+  v->value.err = realloc(v->value.err, strlen(v->value.err)+1);
+  va_end(va);
+
   return v;
 }
 
@@ -27,14 +34,14 @@ lval* lval_sym(const char* s) {
   return v;
 }
 
-static sexpr* new_spr() {
-  sexpr* s = malloc(sizeof(sexpr));
+static spr* new_spr() {
+  spr* s = malloc(sizeof(spr));
   s->count = 0;
   s->cell = NULL;
   return s;
 }
 
-static void free_spr(sexpr* s) {
+static void free_spr(spr* s) {
   for (int i = 0; i < s->count; i++) {
     lval_del(s->cell[i]);
   }
@@ -59,8 +66,16 @@ lval* lval_qexpr(void) {
   return v;
 }
 
+lval* lval_fun(lbuiltin func) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_FUN;
+  v->value.fun = func;
+  return v;
+}
+
 void lval_del(lval* v) {
   switch(v->type){
+  case LVAL_FUN:
   case LVAL_NUM: break;
   case LVAL_ERR: free(v->value.err); break;
   case LVAL_SYM: free(v->value.sym); break;
@@ -121,12 +136,103 @@ void lval_expr_print(lval* v, char open, char close) {
 
 void lval_print(lval* v) {
   switch (v->type) {
-    case LVAL_NUM:   printf("%li", v->value.num); break;
-    case LVAL_ERR:   printf("Error: %s", v->value.err); break;
-    case LVAL_SYM:   printf("%s", v->value.sym); break;
-    case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
-    case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
+  case LVAL_FUN:   printf("<function>"); break;
+  case LVAL_NUM:   printf("%li", v->value.num); break;
+  case LVAL_ERR:   printf("Error: %s", v->value.err); break;
+  case LVAL_SYM:   printf("%s", v->value.sym); break;
+  case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
+  case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
   }
 }
 
 void lval_println(lval* v) { lval_print(v); putchar('\n'); }
+
+lval* lval_copy(lval* v) {
+  lval* x = malloc(sizeof(lval));
+  x->type = v->type;
+  int c;
+
+  switch(v->type) {
+  case LVAL_NUM:
+    x->value.num = v->value.num;
+    break;
+  case LVAL_FUN:
+    x->value.fun = v->value.fun;
+    break;
+  case LVAL_ERR:
+    x->value.err = malloc(strlen(v->value.err) + 1);
+    strcpy(x->value.err, v->value.err);
+    break;
+  case LVAL_SYM:
+    x->value.sym = malloc(strlen(v->value.sym) + 1);
+    strcpy(x->value.sym, v->value.sym);
+    break;
+  case LVAL_SEXPR:
+  case LVAL_QEXPR:
+    c = lval_sexpr_count(v);
+    lval_sexpr_count(x) = c;
+    lval_sexpr_cell(x) = malloc(sizeof(lval*) * c);
+    for (int i = 0; i < c; i++) {
+      lval_sexpr_cell(x)[i] = lval_copy(lval_sexpr_cell(v)[i]);
+    }
+    break;
+  }
+  return x;
+}
+
+/**Environment functions */
+lenv* lenv_new(void) {
+  lenv* e = malloc(sizeof(lenv));
+  e->count = 0;
+  e->syms = NULL;
+  e->vals = NULL;
+  return e;
+}
+
+void lenv_del(lenv* e) {
+  for(int i = 0; i < e->count;i++){
+    free(e->syms[i]);
+    free(e->vals[i]);
+  }
+
+  free(e->syms);
+  free(e->vals);
+  free(e);
+}
+lval* lenv_get(lenv* e, lval* k) {
+  for(int i = 0; i < e->count; i++) {
+    if(strcmp(e->syms[i], k->value.sym) == 0) {
+      return lval_copy(e->vals[i]);
+    }
+  }
+
+  return lval_error("Unbound symbol '%s'", k->value.sym);
+}
+void lenv_put(lenv* e, lval* k, lval* v) {
+  for(int i = 0; i < e->count; i++) {
+    if(strcmp(e->syms[i], k->value.sym) == 0) {
+      /*remember to delete old value*/
+      lval_del(e->vals[i]);
+      e->vals[i] = lval_copy(v);
+      return;
+    }
+  }
+  e->count++;
+  e->syms = realloc(e->syms, sizeof(lval*) * e->count);
+  e->vals = realloc(e->vals, sizeof(lval*) * e->count);
+  e->syms[e->count-1] = malloc(strlen(k->value.sym)+1);
+  strcpy(e->syms[e->count-1], k->value.sym);
+  e->vals[e->count-1] = lval_copy(v);
+}
+
+char* ltype_name(int t) {
+  switch(t) {
+    case LVAL_FUN: return "Function";
+    case LVAL_NUM: return "Number";
+    case LVAL_ERR: return "Error";
+    case LVAL_SYM: return "Symbol";
+    case LVAL_SEXPR: return "S-Expression";
+    case LVAL_QEXPR: return "Q-Expression";
+    default: return "Unknown";
+  }
+}
