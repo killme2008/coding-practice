@@ -1,4 +1,4 @@
-#include "../global.h"
+#include "../readline.h"
 
 /* Create Enumeration of Possible Error Types */
 enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
