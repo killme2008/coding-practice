@@ -27,14 +27,14 @@ lval* lval_sym(const char* s) {
   return v;
 }
 
-static sexpr* new_sexpr() {
+static sexpr* new_spr() {
   sexpr* s = malloc(sizeof(sexpr));
   s->count = 0;
   s->cell = NULL;
   return s;
 }
 
-static void free_sexpr(sexpr* s) {
+static void free_spr(sexpr* s) {
   for (int i = 0; i < s->count; i++) {
     lval_del(s->cell[i]);
   }
@@ -47,7 +47,15 @@ static void free_sexpr(sexpr* s) {
 lval* lval_sexpr(void) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_SEXPR;
-  v->value.list = new_sexpr();
+  v->value.list = new_spr();
+  return v;
+}
+
+/* A pointer to a new empty Qexpr lval */
+lval* lval_qexpr(void) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_QEXPR;
+  v->value.list = new_spr();
   return v;
 }
 
@@ -56,8 +64,9 @@ void lval_del(lval* v) {
   case LVAL_NUM: break;
   case LVAL_ERR: free(v->value.err); break;
   case LVAL_SYM: free(v->value.sym); break;
+  case LVAL_QEXPR:
   case LVAL_SEXPR:
-    free_sexpr(v->value.list);
+    free_spr(v->value.list);
     break;
   }
   /* Free the memory allocated for the "lval" struct itself */
@@ -116,6 +125,7 @@ void lval_print(lval* v) {
     case LVAL_ERR:   printf("Error: %s", v->value.err); break;
     case LVAL_SYM:   printf("%s", v->value.sym); break;
     case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
+    case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
   }
 }
 
