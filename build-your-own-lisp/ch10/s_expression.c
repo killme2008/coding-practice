@@ -153,9 +153,9 @@ lval* builtin_cons(lval* a) {
 
 lval* builtin_init(lval* a) {
   LASSERT(a, lval_sexpr_count(a) == 1,
-          "'len' passed too many arguments.");
+          "'init' passed too many arguments.");
   LASSERT(a, lval_sexpr_cell(a)[0]->type == LVAL_QEXPR,
-          "'len' passed incorrect type.");
+          "'init' passed incorrect type.");
 
 
   lval* x = lval_sexpr_cell(a)[0];
