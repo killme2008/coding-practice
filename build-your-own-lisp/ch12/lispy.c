@@ -176,29 +176,130 @@ lval* builtin_exit(lenv* e, lval* a) {
   exit(lval_sexpr_cell(a)[0]->value.num);
 }
 
-lval* builtin_def(lenv* e, lval* a) {
-  LASSERT_TYPE("def", a, 0, LVAL_QEXPR);
+lval* builtin_var(lenv* e, lval* a, char* func) {
+  LASSERT_TYPE(func, a, 0, LVAL_QEXPR);
 
   int i;
   lval* syms = lval_pop(a, 0);
 
   for(i = 0; i < lval_sexpr_count(syms); i++)
     LASSERT(a, (lval_sexpr_cell(syms)[i]->type == LVAL_SYM),
-            "Function 'def' cannot define non-symbol. "
-            "Got %s, Expected %s.",
+            "Function '%s' cannot define non-symbol. "
+            "Got %s, Expected %s.",func,
             ltype_name(lval_sexpr_cell(syms)[i]->type), ltype_name(LVAL_SYM));
 
   LASSERT(a, lval_sexpr_count(syms) == lval_sexpr_count(a),
-          "Function 'def' passed too many arguments for symbols. "
-          "Got %i, Expected %i.", lval_sexpr_count(a), lval_sexpr_count(syms));
+          "Function '%s' passed too many arguments for symbols. "
+          "Got %i, Expected %i.", func,
+          lval_sexpr_count(a), lval_sexpr_count(syms));
 
-  for(i = 0; i < lval_sexpr_count(syms); i++)
-    lenv_put(e, lval_sexpr_cell(syms)[i], lval_sexpr_cell(a)[i]);
+  for(i = 0; i < lval_sexpr_count(syms); i++) {
+    if(strcmp(func, "def") == 0) {
+      lenv_def(e, lval_sexpr_cell(syms)[i], lval_sexpr_cell(a)[i]);
+    }
+    if(strcmp(func, "=") == 0) {
+      lenv_put(e, lval_sexpr_cell(syms)[i], lval_sexpr_cell(a)[i]);
+    }
+  }
 
   lval_del(syms);
   lval_del(a);
 
   return lval_sexpr();
+}
+
+lval* builtin_def(lenv* e, lval* a) {
+  return builtin_var(e, a, "def");
+}
+
+lval* builtin_put(lenv* e, lval* a) {
+  return builtin_var(e, a, "=");
+}
+
+lval* builtin_lambda(lenv* e, lval* a) {
+  /* Check Two arguments, each of which are Q-Expressions */
+  LASSERT_NUM("\\", a, 2);
+  LASSERT_TYPE("\\", a, 0, LVAL_QEXPR);
+  LASSERT_TYPE("\\", a, 1, LVAL_QEXPR);
+
+  /* Check first Q-Expression contains only Symbols */
+  lval* fs = lval_sexpr_cell(a)[0];
+  for (int i = 0; i < lval_sexpr_count(fs); i++) {
+    LASSERT(a, (lval_sexpr_cell(fs)[i]->type == LVAL_SYM),
+            "Cannot define non-symbol. Got %s, Expected %s.",
+            ltype_name(lval_sexpr_cell(fs)[i]->type),ltype_name(LVAL_SYM));
+  }
+
+  /* Pop first two arguments and pass them to lval_lambda */
+  lval* formals = lval_pop(a, 0);
+  lval* body = lval_pop(a, 0);
+  lval_del(a);
+
+  return lval_lambda(formals, body);
+}
+
+lval* lval_call(lenv* e, lval* f, lval* a) {
+  /* If f is a builtin function */
+  if(f->value.fn->builtin) {
+    return f->value.fn->builtin(e, a);
+  }
+
+  /* bind formals */
+  int given = lval_sexpr_count(a);
+  int total = lval_sexpr_count(f->value.fn->formals);
+
+  while(lval_sexpr_count(a)) {
+
+    LASSERT(a, lval_sexpr_count(f->value.fn->formals) > 0,
+            "Function passed too many arguments. "
+            "Got %i, Expected %i.", given, total);
+
+    lval* sym = lval_pop(f->value.fn->formals, 0);
+
+    if(strcmp(sym->value.sym, "&") == 0) {
+      LASSERT(a, lval_sexpr_count(f->value.fn->formals) == 1,
+              "Function format invalid. "
+              "Symbol '&' not followed by single symbol.");
+      lval* nsym = lval_pop(f->value.fn->formals, 0);
+
+      lenv_put(f->value.fn->env, nsym, builtin_list(e, a));
+      lval_del(sym);lval_del(nsym);
+      break;
+    }
+
+    lval* val = lval_pop(a, 0);
+    lenv_put(f->value.fn->env, sym, val);
+    lval_del(sym);lval_del(val);
+  }
+
+  lval_del(a);
+
+  if (lval_sexpr_count(f->value.fn->formals) > 0 &&
+      strcmp(lval_sexpr_cell(f->value.fn->formals)[0]->value.sym, "&") == 0) {
+
+    LASSERT(a, lval_sexpr_count(f->value.fn->formals) != 2,
+            "Function format invalid. "
+            "Symbol '&' not followed by single symbol.");
+
+    lval_del(lval_pop(f->value.fn->formals, 0));
+
+    lval* sym = lval_pop(f->value.fn->formals, 0);
+    lval* val = lval_qexpr();
+
+    lenv_put(f->value.fn->env, sym, val);
+    lval_del(sym); lval_del(val);
+  }
+
+  if(lval_sexpr_count(f->value.fn->formals) == 0) {
+
+    f->value.fn->env->par = e;
+    /* Call function with function local environment */
+    return builtin_eval(f->value.fn->env,
+                        lval_add(lval_sexpr(), lval_copy(f->value.fn->body)));
+  }else {
+    /* return partial bound function */
+    return lval_copy(f);
+  }
 }
 
 lval* lval_eval_sexpr(lenv* e, lval* v) {
@@ -227,7 +328,7 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
   }
 
   /* If so call function to get result */
-  lval* result = f->value.fn->builtin(e, v);
+  lval* result = lval_call(e, f, v);
   lval_del(f);
   return result;
 }
@@ -303,7 +404,9 @@ void lenv_add_builtins(lenv* e) {
   lenv_add_builtin(e, "/", builtin_div);
 
   /* Environments */
+  lenv_add_builtin(e, "\\",  builtin_lambda);
   lenv_add_builtin(e, "def", builtin_def);
+  lenv_add_builtin(e, "=", builtin_put);
 
   /* Core */
   lenv_add_builtin(e, "exit", builtin_exit);
