@@ -66,6 +66,7 @@ lval* lval_take(lval* v, int i);
 lval* lval_fun(const char* name, lbuiltin func);
 lval* lval_lambda(lval* formals, lval* body);
 lval* lval_copy(lval* v);
+int lval_eq(lval* x, lval* y);
 void lval_print(lval* v);
 void lval_println(lval* v);
 lenv* lenv_new(void);

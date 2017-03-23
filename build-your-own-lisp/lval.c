@@ -236,6 +236,36 @@ lval* lval_copy(lval* v) {
   return x;
 }
 
+int lval_eq(lval* x, lval* y) {
+  if(x->type != y->type)
+    return 0;
+
+  switch(x->type) {
+  case LVAL_NUM:
+    return x->value.num ==  y->value.num;
+  case LVAL_FUN:
+    if(x->value.fn->builtin || x->value.fn->builtin)
+      return x->value.fn->builtin == x->value.fn->builtin;
+    else
+      return lval_eq(x->value.fn->formals, y->value.fn->formals)
+        && lval_eq(x->value.fn->body, y->value.fn->body);
+  case LVAL_ERR:
+    return strcmp(x->value.err, y->value.err) == 0;
+  case LVAL_SYM:
+    return strcmp(x->value.sym, y->value.sym) == 0;
+  case LVAL_SEXPR:
+  case LVAL_QEXPR:
+    if(lval_sexpr_count(x) != lval_sexpr_count(y))
+      return 0;
+    for(int i = 0; i < lval_sexpr_count(x); i++)
+      if(!lval_eq(lval_sexpr_cell(x)[i],
+                  lval_sexpr_cell(y)[i]))
+        return 0;
+  }
+  return 1;
+}
+
+
 /**Environment functions */
 lenv* lenv_new(void) {
   lenv* e = malloc(sizeof(lenv));
