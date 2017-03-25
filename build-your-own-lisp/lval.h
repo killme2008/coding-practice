@@ -2,7 +2,8 @@
 #define LVAL_H
 
 /* Add SYM and SEXPR as possible lval types */
-enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR, LVAL_FUN};
+enum { LVAL_ERR, LVAL_NUM, LVAL_STRING, LVAL_SYM,
+       LVAL_SEXPR, LVAL_QEXPR, LVAL_FUN};
 
 struct spr;
 struct lval;
@@ -34,6 +35,7 @@ struct lval{
     long num;
     char *err;
     char *sym;
+    char *str;
     spr* list;
     func* fn;
   } value;
@@ -57,6 +59,7 @@ struct lenv{
 lval* lval_num(long x);
 lval* lval_error(const char* fmt, ...);
 lval* lval_sym(const char* s);
+lval* lval_str(const char* s);
 lval* lval_sexpr(void);
 lval* lval_qexpr(void);
 void lval_del(lval* v);
@@ -78,25 +81,32 @@ void lenv_def(lenv* e, lval* k, lval* v);
 char* ltype_name(int t);
 
 /* some assert macros */
-#define LASSERT(args, cond, fmt, ...)                       \
-  if (!(cond)) {                                            \
-                lval* err = lval_error(fmt, ##__VA_ARGS__); \
-                lval_del(args);                             \
-                return err;                                 \
-                }
+#define LASSERT(args, cond, fmt, ...)           \
+  if (!(cond)) {                                \
+    lval* err = lval_error(fmt, ##__VA_ARGS__); \
+    lval_del(args);                             \
+    return err;                                 \
+  }
 
 #define LASSERT_TYPE(func, args, index, expect)                         \
   LASSERT(args, lval_sexpr_cell(args)[index]->type == expect,           \
-            "Function '%s' passed incorrect type for argument %i. Got %s, Expected %s.", \
-            func, index, ltype_name(lval_sexpr_cell(args)[index]->type), ltype_name(expect))
+          "Function '%s' passed incorrect type for argument %i. Got %s, Expected %s.", \
+          func, index, ltype_name(lval_sexpr_cell(args)[index]->type), ltype_name(expect))
+
+#define LASSERT_OR_TYPE(func, args, index, expect1, expect2)            \
+  LASSERT(args, lval_sexpr_cell(args)[index]->type == expect1 ||        \
+          lval_sexpr_cell(args)[index]->type == expect2,                \
+          "Function '%s' passed incorrect type for argument %i. Got %s, Expected %s or %s.", \
+          func, index, ltype_name(lval_sexpr_cell(args)[index]->type), ltype_name(expect1), ltype_name(expect2))
+
 
 #define LASSERT_NUM(func, args, num)                                    \
   LASSERT(args, lval_sexpr_count(args) == num,                          \
-            "Function '%s' passed incorrect number of arguments. Got %i, Expected %i.", \
-            func, lval_sexpr_count(args), num)
+          "Function '%s' passed incorrect number of arguments. Got %i, Expected %i.", \
+          func, lval_sexpr_count(args), num)
 
 #define LASSERT_NOT_EMPTY(func, args, index)                          \
   LASSERT(args, lval_sexpr_count(lval_sexpr_cell(args)[index]) != 0,  \
-            "Function '%s' passed {} for argument %i.", func, index);
+          "Function '%s' passed {} for argument %i.", func, index);
 
 #endif

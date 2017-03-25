@@ -1,0 +1,2 @@
+(def {fun} (\ {args body} {def (head args) (\ (tail args) body)}))
+(def {a b} 1 2)

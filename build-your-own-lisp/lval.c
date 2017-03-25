@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "mpc/mpc.h"
 
 #include "lval.h"
 #include <stdarg.h>
@@ -31,6 +32,14 @@ lval* lval_sym(const char* s) {
   v->type = LVAL_SYM;
   v->value.sym = malloc(strlen(s) + 1);
   strcpy(v->value.err, s);
+  return v;
+}
+
+lval* lval_str(const char* s) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_STRING;
+  v->value.sym = malloc(strlen(s) + 1);
+  strcpy(v->value.str, s);
   return v;
 }
 
@@ -111,6 +120,7 @@ void lval_del(lval* v) {
     free(v->value.fn);
     break;
   case LVAL_ERR: free(v->value.err); break;
+  case LVAL_STRING: free(v->value.str); break;
   case LVAL_SYM: free(v->value.sym); break;
   case LVAL_QEXPR:
   case LVAL_SEXPR:
@@ -167,6 +177,18 @@ void lval_expr_print(lval* v, char open, char close) {
   putchar(close);
 }
 
+void lval_print_str(lval* v) {
+   /* Make a Copy of the string */
+  char* escaped = malloc(strlen(v->value.str)+1);
+  strcpy(escaped, v->value.str);
+  /* Pass it through the escape function */
+  escaped = mpcf_escape(escaped);
+  /* Print it between " characters */
+  printf("\"%s\"", escaped);
+  /* free the copied string */
+  free(escaped);
+}
+
 void lval_print(lval* v) {
   switch (v->type) {
   case LVAL_FUN:
@@ -179,6 +201,7 @@ void lval_print(lval* v) {
     break;
   case LVAL_NUM:   printf("%li", v->value.num); break;
   case LVAL_ERR:   printf("Error: %s", v->value.err); break;
+  case LVAL_STRING:  lval_print_str(v); break;
   case LVAL_SYM:   printf("%s", v->value.sym); break;
   case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
   case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
@@ -213,6 +236,10 @@ lval* lval_copy(lval* v) {
       x->value.fn->formals = lval_copy(v->value.fn->formals);
       x->value.fn->body = lval_copy(v->value.fn->body);
     }
+    break;
+  case LVAL_STRING:
+    x->value.err = malloc(strlen(v->value.str) + 1);
+    strcpy(x->value.str, v->value.str);
     break;
   case LVAL_ERR:
     x->value.err = malloc(strlen(v->value.err) + 1);
@@ -249,6 +276,8 @@ int lval_eq(lval* x, lval* y) {
     else
       return lval_eq(x->value.fn->formals, y->value.fn->formals)
         && lval_eq(x->value.fn->body, y->value.fn->body);
+  case LVAL_STRING:
+    return strcmp(x->value.str, y->value.str) == 0;
   case LVAL_ERR:
     return strcmp(x->value.err, y->value.err) == 0;
   case LVAL_SYM:
@@ -338,6 +367,7 @@ char* ltype_name(int t) {
   switch(t) {
   case LVAL_FUN: return "Function";
   case LVAL_NUM: return "Number";
+  case LVAL_STRING: return "String";
   case LVAL_ERR: return "Error";
   case LVAL_SYM: return "Symbol";
   case LVAL_SEXPR: return "S-Expression";
