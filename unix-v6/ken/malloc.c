@@ -32,14 +32,14 @@ struct map *mp;
 	register struct map *bp;
 
 	for (bp = mp; bp->m_size; bp++) {
-		if (bp->m_size >= size) {
+		if (bp->m_size >= size) { //first fit
 			a = bp->m_addr;
-			bp->m_addr =+ size;
-			if ((bp->m_size =- size) == 0)
+			bp->m_addr =+ size; //bump address
+			if ((bp->m_size =- size) == 0) //the node is empty, remove it
 				do {
 					bp++;
 					(bp-1)->m_addr = bp->m_addr;
-				} while ((bp-1)->m_size = bp->m_size);
+				} while ((bp-1)->m_size = bp->m_size); //the end is zero count
 			return(a);
 		}
 	}
@@ -60,24 +60,24 @@ struct map *mp;
 	register int a;
 
 	a = aa;
-	for (bp = mp; bp->m_addr<=a && bp->m_size!=0; bp++);
-	if (bp>mp && (bp-1)->m_addr+(bp-1)->m_size == a) {
-		(bp-1)->m_size =+ size;
-		if (a+size == bp->m_addr) {
-			(bp-1)->m_size =+ bp->m_size;
-			while (bp->m_size) {
+	for (bp = mp; bp->m_addr<=a && bp->m_size!=0; bp++); //find the position
+	if (bp>mp && (bp-1)->m_addr+(bp-1)->m_size == a) { //left end can be combined
+		(bp-1)->m_size =+ size; //combine left
+		if (a+size == bp->m_addr) { //right end can be combined
+			(bp-1)->m_size =+ bp->m_size; //combine right
+			while (bp->m_size) { //move remaining to left
 				bp++;
 				(bp-1)->m_addr = bp->m_addr;
 				(bp-1)->m_size = bp->m_size;
 			}
 		}
 	} else {
-		if (a+size == bp->m_addr && bp->m_size) {
+		if (a+size == bp->m_addr && bp->m_size) { //combine right
 			bp->m_addr =- size;
 			bp->m_size =+ size;
 		} else if (size) do {
 			t = bp->m_addr;
-			bp->m_addr = a;
+			bp->m_addr = a; //insert into this slot, move right the remaining
 			a = t;
 			t = bp->m_size;
 			bp->m_size = size;
