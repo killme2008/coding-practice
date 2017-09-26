@@ -393,16 +393,16 @@ sbreak()
 	if(n < 0)
 		n = 0;
 	d = n - u.u_dsize;
-	n =+ USIZE+u.u_ssize;
-	if(estabur(u.u_tsize, u.u_dsize+d, u.u_ssize, u.u_sep))
+	n =+ USIZE+u.u_ssize; //data area + stack size
+	if(estabur(u.u_tsize, u.u_dsize+d, u.u_ssize, u.u_sep)) //更新用户APR，更新用户空间
 		return;
 	u.u_dsize =+ d;
 	if(d > 0)
-		goto bigger;
+		goto bigger;  //扩大
 	a = u.u_procp->p_addr + n - u.u_ssize;
 	i = n;
 	n = u.u_ssize;
-	while(n--) {
+	while(n--) { //缩小了，栈向低位移动
 		copyseg(a-d, a);
 		a++;
 	}
@@ -413,10 +413,10 @@ bigger:
 	expand(n);
 	a = u.u_procp->p_addr + n;
 	n = u.u_ssize;
-	while(n--) {
+	while(n--) { //扩大，栈向高位移动
 		a--;
 		copyseg(a-d, a);
 	}
 	while(d--)
-		clearseg(--a);
+		clearseg(--a); //清理原来的
 }

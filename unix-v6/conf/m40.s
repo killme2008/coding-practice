@@ -31,35 +31,35 @@ call1:
 	br	1f
 
 call:
-	mov	PS,-(sp)
+	mov	PS,-(sp) //psw压入栈
 1:
-	mov	r1,-(sp)
-	mfpi	sp
-	mov	4(sp),-(sp)
-	bic	$!37,(sp)
-	bit	$30000,PS
+	mov	r1,-(sp) //r1压入栈
+	mfpi	sp //被中断的进程的 sp 压入栈
+	mov	4(sp),-(sp) //将 psw 再次压入栈
+	bic	$!37,(sp)  //将 psw 除了低位5比特以外的部分清零
+	bit	$30000,PS  //检测被中断的进程模式，如果为内核模式，跳转到 54 行
 	beq	1f
-	jsr	pc,*(r0)+
+	jsr	pc,*(r0)+  //如果是用户模式，跳转到 r0 指向的地址，然后将 pc 保存于栈中，作为从中断处理函数返回的地址。
 2:
-	bis	$340,PS
-	tstb	_runrun
+	bis	$340,PS //设置处理器优先级为 7
+	tstb	_runrun //如果没有设置 runrun 标志（没有更高优先级的进程等待运行），跳转到 50 行
 	beq	2f
-	bic	$340,PS
-	jsr	pc,_swtch
-	br	2b
+	bic	$340,PS //如果设置了 runrun 标志，将处理器优先级重置为 0
+	jsr	pc,_swtch //执行 swtch 切换调度
+	br	2b //调度回来，继续执行，返回 43 行继续检测 runrun 标志
 2:
-	tst	(sp)+
-	mtpi	sp
-	br	2f
+	tst	(sp)+ //弹出 psw，忽略
+	mtpi	sp //恢复保存于栈中的被中断进程的 sp
+	br	2f //跳转到 58 行
 1:
-	bis	$30000,PS
-	jsr	pc,*(r0)+
-	cmp	(sp)+,(sp)+
+	bis	$30000,PS //被中断的进程是内核模式，将前一模式设置为用户模式
+	jsr	pc,*(r0)+ //跳转到 r0 指向的中断处理函数地址
+	cmp	(sp)+,(sp)+ //从中断处理函数返回后，忽略 psw 和 sp
 2:
-	mov	(sp)+,r1
-	tst	(sp)+
-	mov	(sp)+,r0
-	rtt
+	mov	(sp)+,r1 //恢复 r1
+	tst	(sp)+ //psw
+	mov	(sp)+,r0 //恢复 r0
+	rtt //恢复保存在栈中的被中断的进程的 psw 和 pc，并继续被中断的进程的处理。
 
 .globl	_savfp, _display
 _savfp:

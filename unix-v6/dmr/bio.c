@@ -18,7 +18,7 @@
  * I/O to be done-- e.g. swbuf, just below, for
  * swapping.
  */
-char	buffers[NBUF][514];
+char	buffers[NBUF][514]; //块设备数据拷贝内存区域
 struct	buf	swbuf;
 
 /*
@@ -56,20 +56,22 @@ bread(dev, blkno)
 {
 	register struct buf *rbp;
 
-	rbp = getblk(dev, blkno);
-	if (rbp->b_flags&B_DONE)
+	rbp = getblk(dev, blkno); //获得缓冲区
+	if (rbp->b_flags&B_DONE) //如果已经完成，直接返回
 		return(rbp);
-	rbp->b_flags =| B_READ;
-	rbp->b_wcount = -256;
-	(*bdevsw[dev.d_major].d_strategy)(rbp);
-	iowait(rbp);
-	return(rbp);
+	rbp->b_flags =| B_READ; //设置 B_READ 标记
+	rbp->b_wcount = -256; //设置读取的长度, 512 字节
+	(*bdevsw[dev.d_major].d_strategy)(rbp); //执行驱动里的设备访问函数，读取数据
+	iowait(rbp); //等待 io 完成
+	return(rbp); //返回读取的缓冲区，调用进程需要调用 belse 负责释放
 }
 
 /*
  * Read in the block, like bread, but also start I/O on the
  * read-ahead block (which is not allocated to the caller)
  */
+//会预读
+//rablekno 预读取的快编号
 breada(adev, blkno, rablkno)
 {
 	register struct buf *rbp, *rabp;
@@ -77,25 +79,25 @@ breada(adev, blkno, rablkno)
 
 	dev = adev;
 	rbp = 0;
-	if (!incore(dev, blkno)) {
-		rbp = getblk(dev, blkno);
-		if ((rbp->b_flags&B_DONE) == 0) {
+	if (!incore(dev, blkno)) { //如果还没有分配缓冲区
+		rbp = getblk(dev, blkno); //分配缓冲区
+		if ((rbp->b_flags&B_DONE) == 0) { //未完成
 			rbp->b_flags =| B_READ;
 			rbp->b_wcount = -256;
-			(*bdevsw[adev.d_major].d_strategy)(rbp);
+			(*bdevsw[adev.d_major].d_strategy)(rbp);  //读取数据
 		}
 	}
 	if (rablkno && !incore(dev, rablkno)) {
 		rabp = getblk(dev, rablkno);
-		if (rabp->b_flags & B_DONE)
+		if (rabp->b_flags & B_DONE) //已经读取，释放缓冲区，注意并没有清除 B_DONE，后面仍然可以读取的
 			brelse(rabp);
 		else {
-			rabp->b_flags =| B_READ|B_ASYNC;
+			rabp->b_flags =| B_READ|B_ASYNC; //预读是异步读，不等待
 			rabp->b_wcount = -256;
-			(*bdevsw[adev.d_major].d_strategy)(rabp);
+			(*bdevsw[adev.d_major].d_strategy)(rabp); //开始读取
 		}
 	}
-	if (rbp==0)
+	if (rbp==0) //准备读取的块的缓冲区已经存在，直接读取
 		return(bread(dev, blkno));
 	iowait(rbp);
 	return(rbp);
@@ -170,19 +172,19 @@ struct buf *bp;
 	register int sps;
 
 	rbp = bp;
-	if (rbp->b_flags&B_WANTED)
+	if (rbp->b_flags&B_WANTED) //唤醒等待这个缓冲区进程
 		wakeup(rbp);
-	if (bfreelist.b_flags&B_WANTED) {
+	if (bfreelist.b_flags&B_WANTED) { //唤醒等待释放缓冲区到 av-list 的进程
 		bfreelist.b_flags =& ~B_WANTED;
 		wakeup(&bfreelist);
 	}
-	if (rbp->b_flags&B_ERROR)
+	if (rbp->b_flags&B_ERROR) //设备操作错误，将小编号设置为-1，防止错误数据被使用
 		rbp->b_dev.d_minor = -1;  /* no assoc. on error */
 	backp = &bfreelist.av_back;
 	sps = PS->integ;
 	spl6();
-	rbp->b_flags =& ~(B_WANTED|B_BUSY|B_ASYNC);
-	(*backp)->av_forw = rbp;
+	rbp->b_flags =& ~(B_WANTED|B_BUSY|B_ASYNC); //清除标记
+	(*backp)->av_forw = rbp; //加到 av-list 末尾
 	rbp->av_back = *backp;
 	*backp = rbp;
 	rbp->av_forw = &bfreelist;
@@ -193,6 +195,7 @@ struct buf *bp;
  * See if the block is associated with some buffer
  * (mainly to avoid getting hung up on a wait in breada)
  */
+//检查分配给设备的某个缓冲区是否存在，不存在返回0，否则返回缓冲区
 incore(adev, blkno)
 {
 	register int dev;
@@ -201,6 +204,7 @@ incore(adev, blkno)
 
 	dev = adev;
 	dp = bdevsw[adev.d_major].d_tab;
+  //遍历设备的缓冲区列表
 	for (bp=dp->b_forw; bp != dp; bp = bp->b_forw)
 		if (bp->b_blkno==blkno && bp->b_dev==dev)
 			return(bp);
@@ -215,6 +219,8 @@ incore(adev, blkno)
  * (e.g. during exec, for the user arglist) getblk can be called
  * with device NODEV to avoid unwanted associativity.
  */
+//dev 设备编号
+//blkno 块设备编号
 getblk(dev, blkno)
 {
 	register struct buf *bp;
@@ -225,50 +231,52 @@ getblk(dev, blkno)
 		panic("blkdev");
 
     loop:
-	if (dev < 0)
+	if (dev < 0) //NODEV(-1)处理,设置为 b-list 头
 		dp = &bfreelist;
 	else {
 		dp = bdevsw[dev.d_major].d_tab;
 		if(dp == NULL)
 			panic("devtab");
+    //遍历设备的 b-list ,检查是否存在所需要的缓冲区 [设备编号,块编号]
 		for (bp=dp->b_forw; bp != dp; bp = bp->b_forw) {
 			if (bp->b_blkno!=blkno || bp->b_dev!=dev)
 				continue;
 			spl6();
 			if (bp->b_flags&B_BUSY) {
 				bp->b_flags =| B_WANTED;
-				sleep(bp, PRIBIO);
+				sleep(bp, PRIBIO); //正在被使用,睡眠等待释放
 				spl0();
 				goto loop;
 			}
 			spl0();
-			notavail(bp);
+			notavail(bp); //设置正在使用标记,从av-list删除并返回
 			return(bp);
 		}
 	}
-	spl6();
-	if (bfreelist.av_forw == &bfreelist) {
+	spl6(); //防止中断,因为块设备在处理结束因触发的中断处理会操作缓冲区,防止中断来避免发生冲突
+	if (bfreelist.av_forw == &bfreelist) { //av-list 为空
 		bfreelist.b_flags =| B_WANTED;
-		sleep(&bfreelist, PRIBIO);
+		sleep(&bfreelist, PRIBIO); //等待
 		spl0();
 		goto loop;
 	}
 	spl0();
-	notavail(bp = bfreelist.av_forw);
-	if (bp->b_flags & B_DELWRI) {
+	notavail(bp = bfreelist.av_forw); //获得开始元素,从av-list删除，同时设置了 busy 标记
+	if (bp->b_flags & B_DELWRI) { //如果设置了延迟写入标记，立刻做异步写入。
 		bp->b_flags =| B_ASYNC;
 		bwrite(bp);
 		goto loop;
 	}
-	bp->b_flags = B_BUSY | B_RELOC;
-	bp->b_back->b_forw = bp->b_forw;
+  //从 av-list 分配的，下面是直接设置标记，原有的什么 B_DONE 都忽略掉，全新
+	bp->b_flags = B_BUSY | B_RELOC; //设置 busy 标记
+	bp->b_back->b_forw = bp->b_forw;  //从当前 b-list 删除
 	bp->b_forw->b_back = bp->b_back;
-	bp->b_forw = dp->b_forw;
+	bp->b_forw = dp->b_forw; //加入新的b-list开始位置
 	bp->b_back = dp;
 	dp->b_forw->b_back = bp;
 	dp->b_forw = bp;
-	bp->b_dev = dev;
-	bp->b_blkno = blkno;
+	bp->b_dev = dev; //命名缓冲区，设备编号
+	bp->b_blkno = blkno; //块编号
 	return(bp);
 }
 
@@ -282,9 +290,9 @@ struct buf *bp;
 	register struct buf *rbp;
 
 	rbp = bp;
-	spl6();
+	spl6(); //屏蔽中断
 	while ((rbp->b_flags&B_DONE)==0)
-		sleep(rbp, PRIBIO);
+		sleep(rbp, PRIBIO); //spin wait，等待完成
 	spl0();
 	geterror(rbp);
 }
@@ -301,11 +309,11 @@ struct buf *bp;
 
 	rbp = bp;
 	sps = PS->integ;
-	spl6();
-	rbp->av_back->av_forw = rbp->av_forw;
+	spl6(); //禁止中断
+	rbp->av_back->av_forw = rbp->av_forw; //从 av-list 删除
 	rbp->av_forw->av_back = rbp->av_back;
-	rbp->b_flags =| B_BUSY;
-	PS->integ = sps;
+	rbp->b_flags =| B_BUSY; //设置 busy 标记
+	PS->integ = sps; //恢复处理器优先级
 }
 
 /*
@@ -320,12 +328,12 @@ struct buf *bp;
 	rbp = bp;
 	if(rbp->b_flags&B_MAP)
 		mapfree(rbp);
-	rbp->b_flags =| B_DONE;
-	if (rbp->b_flags&B_ASYNC)
+	rbp->b_flags =| B_DONE; //标记 done
+	if (rbp->b_flags&B_ASYNC) //异步读写，释放缓冲区
 		brelse(rbp);
 	else {
 		rbp->b_flags =& ~B_WANTED;
-		wakeup(rbp);
+		wakeup(rbp); //唤醒等待完成的进程
 	}
 }
 
@@ -341,7 +349,7 @@ int *bp;
 	p = bp->b_addr;
 	c = 256;
 	do
-		*p++ = 0;
+		*p++ = 0; //清空 buffer
 	while (--c);
 }
 
@@ -358,9 +366,10 @@ binit()
 
 	bfreelist.b_forw = bfreelist.b_back =
 	    bfreelist.av_forw = bfreelist.av_back = &bfreelist;
+  //初始化缓冲区
 	for (i=0; i<NBUF; i++) {
 		bp = &buf[i];
-		bp->b_dev = -1;
+		bp->b_dev = -1; // NODEV 状态
 		bp->b_addr = buffers[i];
 		bp->b_back = &bfreelist;
 		bp->b_forw = bfreelist.b_forw;
@@ -370,10 +379,11 @@ binit()
 		brelse(bp);
 	}
 	i = 0;
+  //初始化 devtab 结构
 	for (bdp = bdevsw; bdp->d_open; bdp++) {
 		dp = bdp->d_tab;
 		if(dp) {
-			dp->b_forw = dp;
+			dp->b_forw = dp; //各设备的 b-list 头部的 forw/back指向自身
 			dp->b_back = dp;
 		}
 		i++;

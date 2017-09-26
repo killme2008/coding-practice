@@ -4,8 +4,8 @@
  * routine.
  */
 char	canonb[CANBSIZ];	/* buffer for erase and kill (#@) */
-int	coremap[CMAPSIZ];	/* space for core allocation */
-int	swapmap[SMAPSIZ];	/* space for swap allocation */
+int	coremap[CMAPSIZ];	/* space for core allocation 内存*/
+int	swapmap[SMAPSIZ];	/* space for swap allocation 交换空间*/
 int	*rootdir;		/* pointer to inode of root directory */
 int	cputype;		/* type of cpu =40, 45, or 70 */
 int	execnt;			/* number of processes in exec */

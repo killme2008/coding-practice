@@ -75,9 +75,9 @@ struct tab
 
 	"clock",
 	-2,	100,	INTR,
-	"\tkwlp; br6\n",
+    "\tkwlp; br6\n",   //kwlp 和 br6 保存在 r0 和 PSW，PSW[7-5]等于 6，因此处理器优先级为 6，pc为 kwlp，因此中断处理 kwlp 标签开始
 	".globl\t_clock\n",
-	"kwlp:\tjsr\tr0,call; _clock\n",
+    "kwlp:\tjsr\tr0,call; _clock\n", // // 将 r0 压入栈，并将 pc 指向 call 标签所指向的地址，然后将 r0 设置为 _clock 函数的地址
 	"",
 	"",
 
@@ -289,7 +289,7 @@ char	*stra[]
 	"\tbr\t1f",
 	"\t4",
 	"",
-	"/ trap vectors",
+  "/ trap vectors", //陷入的向量表
 	"\ttrap; br7+0.\t\t/ bus error",
 	"\ttrap; br7+1.\t\t/ illegal instruction",
 	"\ttrap; br7+2.\t\t/ bpt-trace trap",

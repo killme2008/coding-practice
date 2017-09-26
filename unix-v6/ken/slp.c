@@ -97,9 +97,9 @@ setrun(p)
 	rp->p_wchan = 0; //移除等待条件
 	rp->p_stat = SRUN;　//设置为就绪
 	if(rp->p_pri < curpri)
-		runrun++; //优先级更高，h色织runrun
-  //runout为0表示当前不存在可以从交换空间换入内存的进程，如果大于0，就有其他进程在交换空间，并且当前进程已经在交换空间
-  //重置为0，启动调度器
+		runrun++; //优先级更高，设置runrun标识
+  //runout为0表示当前不存在可以从交换空间换入内存的进程，如果大于0，就有其他进程在交换空间，并且p进程已经在交换空间
+  //重置为0，唤醒调度器
 	if(runout != 0 && (rp->p_flag&SLOAD) == 0) {
 		runout = 0;
 		wakeup(&runout);
@@ -158,20 +158,20 @@ sched()
 	goto loop;
 
 sloop:
-	runin++;
+	runin++; //设置不存在可以换出的进程标志，暂停调度器
 	sleep(&runin, PSWP);
 
 loop:
-	spl6();
+	spl6(); //提高cpu优先级，禁止中断
 	n = -1;
 	for(rp = &proc[0]; rp < &proc[NPROC]; rp++)
-	if(rp->p_stat==SRUN && (rp->p_flag&SLOAD)==0 &&
+    if(rp->p_stat==SRUN && (rp->p_flag&SLOAD)==0 && //找到就绪，但是不在内存里的进程，时间最长的
 	    rp->p_time > n) {
 		p1 = rp;
 		n = rp->p_time;
 	}
-	if(n == -1) {
-		runout++;
+	if(n == -1) { //没有找到可以换入的进程，暂停调度器
+		runout++; /
 		sleep(&runout, PSWP);
 		goto loop;
 	}
@@ -180,25 +180,25 @@ loop:
 	 * see if there is core for that process
 	 */
 
-	spl0();
+	spl0(); //恢复优先级，找到并尝试分配内存
 	rp = p1;
 	a = rp->p_size;
 	if((rp=rp->p_textp) != NULL)
 		if(rp->x_ccount == 0)
-			a =+ rp->x_size;
+			a =+ rp->x_size; //如果文本段不在内存里，增大分配的空间
 	if((a=malloc(coremap, a)) != NULL)
-		goto found2;
+		goto found2; //分配成功，跳转到found2
 
 	/*
 	 * none found,
 	 * look around for easy core
 	 */
 
-	spl6();
+	spl6(); //没有足够内存，查找等待或者停止的进程，准备换出，并且非系统进程(SSYS)，非正在交换进程（SLOCK)
 	for(rp = &proc[0]; rp < &proc[NPROC]; rp++)
 	if((rp->p_flag&(SSYS|SLOCK|SLOAD))==SLOAD &&
 	    (rp->p_stat == SWAIT || rp->p_stat==SSTOP))
-		goto found1;
+		goto found1; //找到进入found1，换出
 
 	/*
 	 * no easy core,
@@ -206,9 +206,10 @@ loop:
 	 * look around for
 	 * oldest process in core
 	 */
-
+  //换入对象距离上次换出的时间不超过3秒，进入sloop 睡眠状态
 	if(n < 3)
 		goto sloop;
+  //不够内存，并且没有找到等待或者停止的进程，找一个运行或者休眠时间最长的在内存里的进程，换出
 	n = -1;
 	for(rp = &proc[0]; rp < &proc[NPROC]; rp++)
 	if((rp->p_flag&(SSYS|SLOCK|SLOAD))==SLOAD &&
@@ -217,6 +218,7 @@ loop:
 		p1 = rp;
 		n = rp->p_time;
 	}
+  //换出的进程距离上次换出不足 2 秒，也是进入休眠
 	if(n < 2)
 		goto sloop;
 	rp = p1;
@@ -236,23 +238,23 @@ found1:
 	 */
 
 found2:
-	if((rp=p1->p_textp) != NULL) {
+	if((rp=p1->p_textp) != NULL) { //换入代码段
 		if(rp->x_ccount == 0) {
 			if(swap(rp->x_daddr, a, rp->x_size, B_READ))
 				goto swaper;
 			rp->x_caddr = a;
 			a =+ rp->x_size;
 		}
-		rp->x_ccount++;
+		rp->x_ccount++; //递增文本段参照计数
 	}
 	rp = p1;
 	if(swap(rp->p_addr, a, rp->p_size, B_READ))
 		goto swaper;
-	mfree(swapmap, (rp->p_size+7)/8, rp->p_addr);
+	mfree(swapmap, (rp->p_size+7)/8, rp->p_addr); //释放交换空间
 	rp->p_addr = a;
-	rp->p_flag =| SLOAD;
+	rp->p_flag =| SLOAD; //设置为加载状态
 	rp->p_time = 0;
-	goto loop;
+	goto loop; //继续查找下一个
 
 swaper:
 	panic("swap error");

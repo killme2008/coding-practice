@@ -21,18 +21,18 @@
 struct buf
 {
 	int	b_flags;		/* see defines below */
-	struct	buf *b_forw;		/* headed by devtab of b_dev */
+	struct	buf *b_forw;		/* headed by devtab of b_dev */ //b-list 已分配
 	struct	buf *b_back;		/*  "  */
-	struct	buf *av_forw;		/* position on free list, */
+	struct	buf *av_forw;		/* position on free list, */ //av-list 未分配
 	struct	buf *av_back;		/*     if not BUSY*/
 	int	b_dev;			/* major+minor device name */
 	int	b_wcount;		/* transfer count (usu. words) */
-	char	*b_addr;		/* low order core address */
+	char	*b_addr;		/* low order core address */ //数据拷贝的内存区域，指向 bio.c 里的 buffers 元素
 	char	*b_xmem;		/* high order core address */
 	char	*b_blkno;		/* block # on device */
 	char	b_error;		/* returned after I/O */
 	char	*b_resid;		/* words not transferred after error */
-} buf[NBUF];
+} buf[NBUF]; //块设备 IO 缓冲区
 
 /*
  * Each block device has a devtab, which contains private state stuff
@@ -59,7 +59,7 @@ struct devtab
  * This is the head of the queue of available
  * buffers-- all unused except for the 2 list heads.
  */
-struct	buf bfreelist;
+struct	buf bfreelist; //av-list的头部
 
 /*
  * These flags are kept in b_flags.

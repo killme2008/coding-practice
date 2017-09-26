@@ -20,11 +20,11 @@ struct
  */
 struct	bdevsw
 {
-	int	(*d_open)();
-	int	(*d_close)();
-	int	(*d_strategy)();
-	int	*d_tab;
-} bdevsw[];
+	int	(*d_open)(); //打开
+	int	(*d_close)(); //关闭
+	int	(*d_strategy)(); //执行
+	int	*d_tab; //指向 buf.h 里的 devtab 结构体
+} bdevsw[]; //块设备列表，关联代码和驱动
 
 /*
  * Nblkdev is the number of entries
@@ -34,7 +34,7 @@ struct	bdevsw
  * Used in bounds checking on major
  * device numbers.
  */
-int	nblkdev;
+int	nblkdev; //统计块设备数量，在 bio.c 里的 binit 里设置。
 
 /*
  * Character device switch.
@@ -46,7 +46,7 @@ struct	cdevsw
 	int	(*d_read)();
 	int	(*d_write)();
 	int	(*d_sgtty)();
-} cdevsw[];
+} cdevsw[]; //字符设备列表
 
 /*
  * Number of character switch entries.
