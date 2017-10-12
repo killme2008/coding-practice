@@ -277,6 +277,7 @@ sslep()
 	d[1] = time[1];
 	dpadd(d, u.u_ar0[R0]);
 
+  //while 检测时间是否到，没有到就继续睡眠
 	while(dpcmp(d[0], d[1], time[0], time[1]) > 0) {
 		if(dpcmp(tout[0], tout[1], time[0], time[1]) <= 0 ||
 		   dpcmp(tout[0], tout[1], d[0], d[1]) > 0) {

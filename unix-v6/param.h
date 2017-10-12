@@ -18,7 +18,7 @@
 #define	NPROC	50		/* max number of processes */
 #define	NTEXT	40		/* max number of pure texts */
 #define	NCLIST	100		/* max total clist size */
-#define	HZ	60		/* Ticks/second of the clock */
+#define	HZ	60		/* Ticks/second of the clock */ //时钟频率
 
 /*
  * priorities

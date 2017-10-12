@@ -225,27 +225,33 @@ core()
  * grow the stack to include the SP
  * true return if successful.
  */
-
+//扩展栈o空间
 grow(sp)
 char *sp;
 {
 	register a, si, i;
 
-	if(sp >= -u.u_ssize*64)
+	if(sp >= -u.u_ssize*64) //栈空间足够大，不做处理
 		return(0);
+  //计算新地址，扩展 20*64
 	si = ldiv(-sp, 64) - u.u_ssize + SINCR;
 	if(si <= 0)
 		return(0);
+  //更新用户 APR
 	if(estabur(u.u_tsize, u.u_dsize, u.u_ssize+si, u.u_sep))
 		return(0);
+  //扩展
 	expand(u.u_procp->p_size+si);
 	a = u.u_procp->p_addr + u.u_procp->p_size;
+  //移动栈区域
 	for(i=u.u_ssize; i; i--) {
 		a--;
 		copyseg(a-si, a);
 	}
+  //清零新扩展的区域
 	for(i=si; i; i--)
 		clearseg(--a);
+  //增加长度
 	u.u_ssize =+ si;
 	return(1);
 }
@@ -261,7 +267,7 @@ ptrace()
 		u.u_procp->p_flag =| STRC;
 		return;
 	}
-	for (p=proc; p < &proc[NPROC]; p++) 
+	for (p=proc; p < &proc[NPROC]; p++)
 		if (p->p_stat==SSTOP
 		 && p->p_pid==u.u_arg[0]
 		 && p->p_ppid==u.u_procp->p_pid)

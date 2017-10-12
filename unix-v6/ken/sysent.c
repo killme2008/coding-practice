@@ -8,6 +8,7 @@
  * Each row contains the number of arguments expected
  * and a pointer to the routine.
  */
+//系统调用表
 int	sysent[]
 {
 	0, &nullsys,			/*  0 = indir */

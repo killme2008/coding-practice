@@ -21,12 +21,13 @@ int	tout[2];		/* time of day of next sleep */
  * Used, for example, to time tab
  * delays on teletypes.
  */
+//时钟定期执行函数结构体
 struct	callo
 {
-	int	c_time;		/* incremental time */
-	int	c_arg;		/* argument to routine */
-	int	(*c_func)();	/* routine */
-} callout[NCALL];
+	int	c_time;		/* incaremental time */ //距离前一个元素的相对时间
+	int	c_arg;		/* argument to routine */ //函数的参数
+	int	(*c_func)();	/* routine */ //函数指针
+} callout[NCALL]; //最多20个，param.h
 /*
  * Mount structure.
  * One allocated on every mount.

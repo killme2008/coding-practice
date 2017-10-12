@@ -562,7 +562,7 @@ _retu:
 	jmp	(r1)
 
 .globl	_spl0, _spl1, _spl4, _spl5, _spl6, _spl7
-_spl0:
+_spl0:  //处理器优先级变更函数
 	bic	$340,PS
 	rts	pc
 

@@ -16,8 +16,8 @@
  * structure of the system entry table (sysent.c)
  */
 struct sysent	{
-	int	count;		/* argument count */
-	int	(*call)();	/* name of handler */
+	int	count;		/* argument count */ //参数数量
+	int	(*call)();	/* name of handler 系统调用处理函数的地址*/
 } sysent[64];
 
 /*
@@ -46,8 +46,9 @@ trap(dev, sp, r1, nps, r0, pc, ps)
 
 	savfp();
 	if ((ps&UMODE) == UMODE)
-		dev =| USER;
-	u.u_ar0 = &r0;
+		dev =| USER; //用户模式，设置 dev user 标志
+	u.u_ar0 = &r0; // 将 r0 地址存入 u.u_ar0，通过 u.u_ar0[Rn] 可以访问陷入进程的 r{n} 寄存器
+  //根据陷入种类做派发处理
 	switch(dev) {
 
 	/*
@@ -96,32 +97,43 @@ trap(dev, sp, r1, nps, r0, pc, ps)
 	case 5+USER: /* emt */
 		i = SIGEMT;
 		break;
-
+    //系统调用
 	case 6+USER: /* sys call */
+    //重置 u_error
 		u.u_error = 0;
+    //清除错误位
 		ps =& ~EBIT;
+    //获取系统调用种类
 		callp = &sysent[fuiword(pc-2)&077];
+    //如果是间接系统调用，也就是 sysent[0]
 		if (callp == sysent) { /* indirect */
 			a = fuiword(pc);
 			pc =+ 2;
 			i = fuword(a);
-			if ((i & ~077) != SYS)
-				i = 077;	/* illegal */
-			callp = &sysent[i&077];
+			if ((i & ~077) != SYS) //如果不是系统调用
+				i = 077;	/* illegal */ //设置为 nosys
+			callp = &sysent[i&077]; //实际的系统调用
+      //设置系统调用参数
 			for(i=0; i<callp->count; i++)
 				u.u_arg[i] = fuword(a =+ 2);
 		} else {
+      //处理直接系统调用
 			for(i=0; i<callp->count; i++) {
 				u.u_arg[i] = fuiword(pc);
 				pc =+ 2;
 			}
 		}
+    //设置文件路径名
 		u.u_dirp = u.u_arg[0];
+    //执行系统调用
 		trap1(callp->call);
+    //如果系统调用被信号中断，返回 EINTR 错误
 		if(u.u_intflg)
 			u.u_error = EINTR;
+    //发生错误
 		if(u.u_error < 100) {
 			if(u.u_error) {
+        //设置 PSW[0]
 				ps =| EBIT;
 				r0 = u.u_error;
 			}
@@ -139,10 +151,13 @@ trap(dev, sp, r1, nps, r0, pc, ps)
 	 * up later.
 	 */
 	case 8: /* floating exception */
+
+    //通知给用户进程
 		psignal(u.u_procp, SIGFPT);
 		return;
 
 	case 8+USER:
+    //用户模式，直接跟总线错误处理一样
 		i = SIGFPT;
 		break;
 
@@ -157,7 +172,9 @@ trap(dev, sp, r1, nps, r0, pc, ps)
 	 *	cmp	-(sp),-(sp)
 	 */
 	case 9+USER: /* segmentation exception */
+    //扩展栈区域
 		a = sp;
+    //先保存
 		if(backup(u.u_ar0) == 0)
 		if(grow(a))
 			goto out;
@@ -167,8 +184,10 @@ trap(dev, sp, r1, nps, r0, pc, ps)
 	psignal(u.u_procp, i);
 
 out:
+  //信号处理
 	if(issig())
 		psig();
+  //重新计算进程优先级
 	setpri(u.u_procp);
 }
 
@@ -190,10 +209,10 @@ trap1(f)
 int (*f)();
 {
 
-	u.u_intflg = 1;
-	savu(u.u_qsav);
-	(*f)();
-	u.u_intflg = 0;
+	u.u_intflg = 1; //设置中断标志
+	savu(u.u_qsav); //保存寄存器，如果被信号中断，会从 trap1 返回，并且 u_intflg 仍然为1，表示系统调用被中断
+	(*f)(); //执行系统调用
+	u.u_intflg = 0; //清除中断标志
 }
 
 /*

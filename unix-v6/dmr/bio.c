@@ -115,14 +115,14 @@ struct buf *bp;
 
 	rbp = bp;
 	flag = rbp->b_flags;
-	rbp->b_flags =& ~(B_READ | B_DONE | B_ERROR | B_DELWRI);
+	rbp->b_flags =& ~(B_READ | B_DONE | B_ERROR | B_DELWRI); //这里清除了写、读、错误和完成等标记
 	rbp->b_wcount = -256;
-	(*bdevsw[rbp->b_dev.d_major].d_strategy)(rbp);
-	if ((flag&B_ASYNC) == 0) {
-		iowait(rbp);
-		brelse(rbp);
-	} else if ((flag&B_DELWRI)==0)
-		geterror(rbp);
+	(*bdevsw[rbp->b_dev.d_major].d_strategy)(rbp); //调用设备访问函数
+	if ((flag&B_ASYNC) == 0) { //如果不是异步写入
+		iowait(rbp); //等待完成
+		brelse(rbp); //释放缓冲区
+	} else if ((flag&B_DELWRI)==0) //如果不是延迟写入
+		geterror(rbp); //检查有没有错误
 }
 
 /*
@@ -141,11 +141,11 @@ struct buf *bp;
 
 	rbp = bp;
 	dp = bdevsw[rbp->b_dev.d_major].d_tab;
-	if (dp == &tmtab || dp == &httab)
+	if (dp == &tmtab || dp == &httab) //磁带设备，异步写入
 		bawrite(rbp);
 	else {
-		rbp->b_flags =| B_DELWRI | B_DONE;
-		brelse(rbp);
+		rbp->b_flags =| B_DELWRI | B_DONE; //设置延迟写入标记和 b_done 标记，预读发现 b_done，认为数据已经“读取”，也就不用重新读取了。
+		brelse(rbp); //直接释放缓冲区，等缓冲区下次被使用的时候(getblk)，发现有延迟写入标志，才写入或者 bflush 定期写入
 	}
 }
 
@@ -158,7 +158,7 @@ struct buf *bp;
 	register struct buf *rbp;
 
 	rbp = bp;
-	rbp->b_flags =| B_ASYNC;
+	rbp->b_flags =| B_ASYNC; //设置异步写入标志
 	bwrite(rbp);
 }
 
@@ -536,12 +536,12 @@ bflush(dev)
 	register struct buf *bp;
 
 loop:
-	spl6();
+	spl6(); //防止中断
 	for (bp = bfreelist.av_forw; bp != &bfreelist; bp = bp->av_forw) {
 		if (bp->b_flags&B_DELWRI && (dev == NODEV||dev==bp->b_dev)) {
-			bp->b_flags =| B_ASYNC;
-			notavail(bp);
-			bwrite(bp);
+			bp->b_flags =| B_ASYNC; //加入延迟写入标志
+			notavail(bp); // 从 av-list 移除，设置 busy 标记
+			bwrite(bp); //写入设备
 			goto loop;
 		}
 	}
