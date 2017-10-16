@@ -39,6 +39,7 @@
  * dont change
  */
 
+//信号列表
 #define	NSIG	20
 #define		SIGHUP	1	/* hangup */
 #define		SIGINT	2	/* interrupt (rubout) */

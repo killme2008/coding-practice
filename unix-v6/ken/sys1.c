@@ -323,14 +323,20 @@ loop:
 			brelse(bp);
 			return;
 		}
-		if(p->p_stat == SSTOP) {　//非运行状态，设置wait状态
+    //这里需要跟 sig.c 对跟踪的处理对照
+		if(p->p_stat == SSTOP) {　//进程处于跟踪状态，等待父进程介入
+        //如果没有设置 SWTED ，设置下
 			if((p->p_flag&SWTED) == 0) {
 				p->p_flag =| SWTED;
+        //将 r0 设置为 pid
 				u.u_ar0[R0] = p->p_pid;
+        // r1 的高8位设置为 p_sig，低八位设置为 01777
 				u.u_ar0[R1] = (p->p_sig<<8) | 0177;
 				return;
 			}
-			p->p_flag =& ~(STRC|SWTED); //移除wait并设置为就绪
+      //如果父进程没有调用 ptrace 介入子进程，移除跟踪状态
+			p->p_flag =& ~(STRC|SWTED);
+      //并使子进程进入就绪状态
 			setrun(p);
 		}
 	}

@@ -199,21 +199,22 @@ smdate()
 }
 */
 
+ //signal 系统调用
 ssig()
 {
 	register a;
 
-	a = u.u_arg[0];
+	a = u.u_arg[0]; //u.u_arg[0] 为信号种类
 	if(a<=0 || a>=NSIG || a ==SIGKIL) {
 		u.u_error = EINVAL;
 		return;
 	}
-	u.u_ar0[R0] = u.u_signal[a];
-	u.u_signal[a] = u.u_arg[1];
-	if(u.u_procp->p_sig == a)
+	u.u_ar0[R0] = u.u_signal[a]; //作为 signal 调用的返回值
+	u.u_signal[a] = u.u_arg[1]; //设定的值
+	if(u.u_procp->p_sig == a) //如果已经接收，重置
 		u.u_procp->p_sig = 0;
 }
-
+//发送 kill 信号，不能向自己/0/1发送该信号
 kill()
 {
 	register struct proc *p, *q;
@@ -221,20 +222,25 @@ kill()
 	int f;
 
 	f = 0;
-	a = u.u_ar0[R0];
+	a = u.u_ar0[R0]; //进程 id
 	q = u.u_procp;
 	for(p = &proc[0]; p < &proc[NPROC]; p++) {
-		if(p == q)
+		if(p == q) //忽略自身
 			continue;
+    //非指定 pid，并且不是 0
 		if(a != 0 && p->p_pid != a)
 			continue;
+    //如果是0，但是不是同一个终端，或者 p 是 0 或者 1
 		if(a == 0 && (p->p_ttyp != q->p_ttyp || p <= &proc[1]))
 			continue;
+    //非实效 uid
 		if(u.u_uid != 0 && u.u_uid != p->p_uid)
 			continue;
+    //除了以上情况，都发送信号
 		f++;
 		psignal(p, u.u_arg[0]);
 	}
+  //没有找到，返回错误
 	if(f == 0)
 		u.u_error = ESRCH;
 }
