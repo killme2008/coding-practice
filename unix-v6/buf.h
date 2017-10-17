@@ -49,7 +49,7 @@ struct devtab
 {
 	char	d_active;		/* busy flag */
 	char	d_errcnt;		/* error count (for recovery) */
-	struct	buf *b_forw;		/* first buffer for this dev */
+	struct	buf *b_forw;		/* first buffer for this dev 　指向当前关联的缓冲区*/
 	struct	buf *b_back;		/* last buffer for this dev */
 	struct	buf *d_actf;		/* head of I/O queue */
 	struct 	buf *d_actl;		/* tail of I/O queue */

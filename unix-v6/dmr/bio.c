@@ -19,7 +19,7 @@
  * swapping.
  */
 char	buffers[NBUF][514]; //块设备数据拷贝内存区域
-struct	buf	swbuf;
+struct	buf	swbuf; //专用于交换的缓冲区，没有　５１２　的限制
 
 /*
  * Declarations of the tables for the magtape devices;
@@ -183,7 +183,7 @@ struct buf *bp;
 	backp = &bfreelist.av_back;
 	sps = PS->integ;
 	spl6();
-	rbp->b_flags =& ~(B_WANTED|B_BUSY|B_ASYNC); //清除标记
+	rbp->b_flags =& ~(B_WANTED|B_BUSY|B_ASYNC); //清除标记，注意并没有清除 B_DONE
 	(*backp)->av_forw = rbp; //加到 av-list 末尾
 	rbp->av_back = *backp;
 	*backp = rbp;
@@ -262,9 +262,9 @@ getblk(dev, blkno)
 	}
 	spl0();
 	notavail(bp = bfreelist.av_forw); //获得开始元素,从av-list删除，同时设置了 busy 标记
-	if (bp->b_flags & B_DELWRI) { //如果设置了延迟写入标记，立刻做异步写入。
-		bp->b_flags =| B_ASYNC;
-		bwrite(bp);
+	if (bp->b_flags & B_DELWRI) { //如果设置了延迟写入标记，立刻做同步写入。
+		bp->b_flags =| B_ASYNC; //移除 b_async 标志
+		bwrite(bp); //同步写入
 		goto loop;
 	}
   //从 av-list 分配的，下面是直接设置标记，原有的什么 B_DONE 都忽略掉，全新
@@ -611,8 +611,8 @@ int (*strat)();
 	bp->b_blkno = lshift(u.u_offset, -9);
 	bp->b_wcount = -((u.u_count>>1) & 077777);
 	bp->b_error = 0;
-	u.u_procp->p_flag =| SLOCK;
-	(*strat)(bp);
+	u.u_procp->p_flag =| SLOCK;　//锁定，防止被换出
+　(*strat)(bp); //执行设备函数
 	spl6();
 	while ((bp->b_flags&B_DONE) == 0)
 		sleep(bp, PRIBIO);
