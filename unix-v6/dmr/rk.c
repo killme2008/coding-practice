@@ -24,6 +24,7 @@
 #define	WLO	020000
 #define	CTLRDY	0200
 
+// rk 磁盘寄存器
 struct {
 	int rkds;
 	int rker;
@@ -34,8 +35,10 @@ struct {
 };
 
 struct	devtab	rktab;
+// rk 磁盘的读写缓冲区
 struct	buf	rrkbuf;
 
+//rk磁盘读写的函数，定义在 conf/mkconf.c 里
 rkstrategy(abp)
 struct buf *abp;
 {
@@ -54,15 +57,18 @@ struct buf *abp;
 		iodone(bp);
 		return;
 	}
-	bp->av_forw = 0;
-	spl5();
+	bp->av_forw = 0; //将缓冲区末尾设置为０
+	spl5();　//禁止 rk 中断
+  //如果队列为空
 	if (rktab.d_actf==0)
 		rktab.d_actf = bp;
 	else
-		rktab.d_actl->av_forw = bp;
+		rktab.d_actl->av_forw = bp;　//不为空，追加到末尾
 	rktab.d_actl = bp;
+  //不处于处理状态，启动处理
 	if (rktab.d_active==0)
 		rkstart();
+  //重置优先级
 	spl0();
 }
 
@@ -88,17 +94,20 @@ struct buf *bp;
 rkstart()
 {
 	register struct buf *bp;
-
+  //缓冲区为空，返回
 	if ((bp = rktab.d_actf) == 0)
 		return;
 	rktab.d_active++;
+  //启动磁盘处理
 	devstart(bp, &RKADDR->rkda, rkaddr(bp), 0);
 }
 
+//设备处理结束，引发中断，删除头部的缓冲区
 rkintr()
 {
 	register struct buf *bp;
 
+  //未启动，忽略
 	if (rktab.d_active == 0)
 		return;
 	bp = rktab.d_actf;
@@ -107,18 +116,24 @@ rkintr()
 		deverror(bp, RKADDR->rker, RKADDR->rkds);
 		RKADDR->rkcs = RESET|GO;
 		while((RKADDR->rkcs&CTLRDY) == 0) ;
+    //有错误，重试１０次
 		if (++rktab.d_errcnt <= 10) {
 			rkstart();
 			return;
 		}
+    //超过重试上限，设置　error
 		bp->b_flags =| B_ERROR;
 	}
 	rktab.d_errcnt = 0;
+  //删除头部缓冲区
 	rktab.d_actf = bp->av_forw;
+  //iodone 通知
 	iodone(bp);
+  //继续处理下一个缓冲区
 	rkstart();
 }
 
+//使用　physio　读写设备
 rkread(dev)
 {
 
