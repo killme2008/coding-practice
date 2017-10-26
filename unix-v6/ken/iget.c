@@ -34,38 +34,48 @@ iget(dev, ino)
 loop:
 	ip = NULL;
 	for(p = &inode[0]; p < &inode[NINODE]; p++) {
+    //在内存找到
 		if(dev==p->i_dev && ino==p->i_number) {
+      //如果正在被使用，等待睡眠
 			if((p->i_flag&ILOCK) != 0) {
 				p->i_flag =| IWANT;
 				sleep(p, PINOD);
 				goto loop;
 			}
+      //如果是 mount 挂载
 			if((p->i_flag&IMOUNT) != 0) {
 				for(ip = &mount[0]; ip < &mount[NMOUNT]; ip++)
 				if(ip->m_inodp == p) {
+          //获取挂载的设备号，继续循环，获取挂载点的 inode
 					dev = ip->m_dev;
 					ino = ROOTINO;
 					goto loop;
 				}
+        //没有挂载，不应该出现
 				panic("no imt");
 			}
+      //在内存里找到，并且没有被使用，不是挂载点，加锁返回
 			p->i_count++;
 			p->i_flag =| ILOCK;
 			return(p);
 		}
+    //找到一个最近未使用的位置
 		if(ip==NULL && p->i_count==0)
 			ip = p;
 	}
+  // inode 表溢出了
 	if((p=ip) == NULL) {
 		printf("Inode table overflow\n");
 		u.u_error = ENFILE;
 		return(NULL);
 	}
+  //初始化 inode
 	p->i_dev = dev;
 	p->i_number = ino;
-	p->i_flag = ILOCK;
+	p->i_flag = ILOCK;　//只保留 lock 标示
 	p->i_count++;
-	p->i_lastr = -1;
+	p->i_lastr = -1; //初始状态，没有预读的逻辑块
+  //从设备中读取 inode
 	ip = bread(dev, ldiv(ino+31,16));
 	/*
 	 * Check I/O errors
@@ -75,11 +85,14 @@ loop:
 		iput(p);
 		return(NULL);
 	}
+  //从i_mode 到　i_addr 拷贝到 p
 	ip1 = ip->b_addr + 32*lrem(ino+31, 16);
 	ip2 = &p->i_mode;
 	while(ip2 < &p->i_addr[8])
 		*ip2++ = *ip1++;
+  //释放缓冲区
 	brelse(ip);
+  //返回 p
 	return(p);
 }
 
@@ -96,19 +109,26 @@ struct inode *p;
 	register *rp;
 
 	rp = p;
+  //最后一个引用，特殊处理
 	if(rp->i_count == 1) {
 		rp->i_flag =| ILOCK;
+    //来自目录的参照计数为０，文件可以删除了
 		if(rp->i_nlink <= 0) {
+      //清除文件
 			itrunc(rp);
 			rp->i_mode = 0;
+      //返回空闲队列
 			ifree(rp->i_dev, rp->i_number);
 		}
+    //写入块设备
 		iupdat(rp, time);
 		prele(rp);
 		rp->i_flag = 0;
 		rp->i_number = 0;
 	}
+  //不是最后一个，只是递减
 	rp->i_count--;
+  //解锁
 	prele(rp);
 }
 
@@ -127,24 +147,30 @@ int *tm;
 	int *bp, i;
 
 	rp = p;
+  //有更新或者访问的标示
 	if((rp->i_flag&(IUPD|IACC)) != 0) {
+    //读取超级块，判断不是只读挂载
 		if(getfs(rp->i_dev)->s_ronly)
 			return;
 		i = rp->i_number+31;
 		bp = bread(rp->i_dev, ldiv(i,16));
 		ip1 = bp->b_addr + 32*lrem(i, 16);
 		ip2 = &rp->i_mode;
+    //更新 i_mode 到　i_addr 到块缓冲区，也就是写入
 		while(ip2 < &rp->i_addr[8])
 			*ip1++ = *ip2++;
+    //如果有访问，更新时间戳 i_atime
 		if(rp->i_flag&IACC) {
 			*ip1++ = time[0];
 			*ip1++ = time[1];
 		} else
 			ip1 =+ 2;
+    //如果有更新，更新时间戳 i_mtime
 		if(rp->i_flag&IUPD) {
 			*ip1++ = *tm++;
 			*ip1++ = *tm;
 		}
+    //写入设备
 		bwrite(bp);
 	}
 }
@@ -158,6 +184,7 @@ int *tm;
  * a contiguous free list much longer
  * than FIFO.
  */
+//释放 inode 以及对应的缓冲区
 itrunc(ip)
 int *ip;
 {
@@ -165,28 +192,38 @@ int *ip;
 	int *dp, *ep;
 
 	rp = ip;
+  //特殊文件，不做处理
 	if((rp->i_mode&(IFCHR&IFBLK)) != 0)
 		return;
 	for(ip = &rp->i_addr[7]; ip >= &rp->i_addr[0]; ip--)
+    //尝试释放存储空间
 	if(*ip) {
+    //间接引用
 		if((rp->i_mode&ILARG) != 0) {
+      //读取间接参照块
 			bp = bread(rp->i_dev, *ip);
 			for(cp = bp->b_addr+512; cp >= bp->b_addr; cp--)
 			if(*cp) {
+        //双重间接参照
 				if(ip == &rp->i_addr[7]) {
 					dp = bread(rp->i_dev, *cp);
+          //释放双重间接参照的块
 					for(ep = dp->b_addr+512; ep >= dp->b_addr; ep--)
 					if(*ep)
 						free(rp->i_dev, *ep);
 					brelse(dp);
 				}
+        //返回给空闲队列
 				free(rp->i_dev, *cp);
 			}
+      //释放块缓冲区
 			brelse(bp);
 		}
+    //释放第一层
 		free(rp->i_dev, *ip);
 		*ip = 0;
 	}
+  //重置 inode 状态
 	rp->i_mode =& ~ILARG;
 	rp->i_size0 = 0;
 	rp->i_size1 = 0;

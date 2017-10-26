@@ -220,7 +220,7 @@ incore(adev, blkno)
  * with device NODEV to avoid unwanted associativity.
  */
 //dev 设备编号
-//blkno 块设备编号
+//blkno 块编号
 getblk(dev, blkno)
 {
 	register struct buf *bp;

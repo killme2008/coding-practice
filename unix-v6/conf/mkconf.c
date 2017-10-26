@@ -360,7 +360,7 @@ char	*strg[]
 	"\t0",
 	"};",
 	"",
-	"int\trootdev\t{(%d<<8)|0};",
+  "int\trootdev\t{(%d<<8)|0};", //根磁盘
 	"int\tswapdev\t{(%d<<8)|0};",
 	"int\tswplo\t4000;\t/* cannot be zero */",
 	"int\tnswap\t872;",

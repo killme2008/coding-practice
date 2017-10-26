@@ -8,29 +8,31 @@
  * Data, from mode on, is read in
  * from permanent inode on volume.
  */
+//在内存中的　inode 结构，超级块里的 inode 将转成该结构, (dev,inumber) 指定一个 inode
 struct	inode
 {
 	char	i_flag;
-	char	i_count;	/* reference count */
-	int	i_dev;		/* device where inode resides */
-	int	i_number;	/* i number, 1-to-1 with device address */
+	char	i_count;	/* reference count 参照计数*/
+	int	i_dev;		/* device where inode resides，设备编号 */
+	int	i_number;	/* i number, 1-to-1 with device address，inode 编号，０表示没有被使用 */
 	int	i_mode;
-	char	i_nlink;	/* directory entries */
+	char	i_nlink;	/* directory entries 来自目录的参照计数，从i这里开始到 i_addr 和 ino.h 磁盘
+                   里的　inode 结构一样，可以方便拷贝*/
 	char	i_uid;		/* owner */
 	char	i_gid;		/* group of owner */
 	char	i_size0;	/* most significant of size */
 	char	*i_size1;	/* least sig */
 	int	i_addr[8];	/* device addresses constituting file */
-	int	i_lastr;	/* last logical block read (for read-ahead) */
+	int	i_lastr;	/* last logical block read (for read-ahead),在此　inode 之前读取的逻辑块编号，用于预读取功能 */
 } inode[NINODE];
 
 /* flags */
-#define	ILOCK	01		/* inode is locked */
-#define	IUPD	02		/* inode has been modified */
-#define	IACC	04		/* inode access time to be updated */
-#define	IMOUNT	010		/* inode is mounted on */
-#define	IWANT	020		/* some process waiting on lock */
-#define	ITEXT	040		/* inode is pure text prototype */
+#define	ILOCK	01		/* inode is locked 加锁*/
+#define	IUPD	02		/* inode has been modified ，更新*/
+#define	IACC	04		/* inode access time to be updated，参照，也就是被访问 */
+#define	IMOUNT	010		/* inode is mounted on ，作为挂载点*/
+#define	IWANT	020		/* some process waiting on lock，有进程在等待该　inode[] 解锁的进程*/
+#define	ITEXT	040		/* inode is pure text prototype ,代码段标志*/
 
 /* modes */
 #define	IALLOC	0100000		/* file is used */

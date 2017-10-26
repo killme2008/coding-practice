@@ -35,9 +35,9 @@ struct	callo
  */
 struct	mount
 {
-	int	m_dev;		/* device mounted */
-	int	*m_bufp;	/* pointer to superblock */
-	int	*m_inodp;	/* pointer to mounted on inode */
+	int	m_dev;		/* device mounted 挂载的块设备编号*/
+	int	*m_bufp;	/* pointer to superblock 指向块设备的超级块，see filsys.h */
+	int	*m_inodp;	/* pointer to mounted on inode，指向代表挂载点的 inode []　元素 */
 } mount[NMOUNT];
 int	mpid;			/* generic for unique process id's */
 char	runin;			/* scheduling flag */

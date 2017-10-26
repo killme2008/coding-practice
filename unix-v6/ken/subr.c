@@ -17,6 +17,7 @@
  * block number of the next block of the file in rablock
  * for use in read-ahead.
  */
+//将逻辑块编号映射为物理块编号
 bmap(ip, bn)
 struct inode *ip;
 int bn;
@@ -25,11 +26,13 @@ int bn;
 	int *nbp, d, i;
 
 	d = ip->i_dev;
+  //超过范围，报错
 	if(bn & ~077777) {
 		u.u_error = EFBIG;
 		return(0);
 	}
 
+  //直接参照
 	if((ip->i_mode&ILARG) == 0) {
 
 		/*
@@ -41,26 +44,33 @@ int bn;
 			/*
 			 * convert small to large
 			 */
-
+      //文件超过，转化为间接参照
 			if ((bp = alloc(d)) == NULL)
 				return(NULL);
 			bap = bp->b_addr;
 			for(i=0; i<8; i++) {
+        //拷贝到新分配的缓冲区
 				*bap++ = ip->i_addr[i];
 				ip->i_addr[i] = 0;
 			}
+      //设置间接引用
 			ip->i_addr[0] = bp->b_blkno;
+      //写入块
 			bdwrite(bp);
+      //设置间接引用标志
 			ip->i_mode =| ILARG;
+      //进入间接引用算法
 			goto large;
 		}
 		nb = ip->i_addr[bn];
+    //第一次分配
 		if(nb == 0 && (bp = alloc(d)) != NULL) {
 			bdwrite(bp);
 			nb = bp->b_blkno;
 			ip->i_addr[bn] = nb;
 			ip->i_flag =| IUPD;
 		}
+    //用于预读
 		rablock = 0;
 		if (bn<7)
 			rablock = ip->i_addr[bn+1];
@@ -69,27 +79,35 @@ int bn;
 
 	/*
 	 * large file algorithm
+   * 间接引用算法
 	 */
 
     large:
 	i = bn>>8;
+  //还是过大，使用双重间接
 	if(bn & 0174000)
 		i = 7;
 	if((nb=ip->i_addr[i]) == 0) {
+    //不存在，创建
 		ip->i_flag =| IUPD;
 		if ((bp = alloc(d)) == NULL)
 			return(NULL);
 		ip->i_addr[i] = bp->b_blkno;
 	} else
+    //否则读取
 		bp = bread(d, nb);
+  //获得了间接存储块地址，但是可能是双重间接引用块的地址，下面继续做处理
 	bap = bp->b_addr;
 
 	/*
 	 * "huge" fetch of double indirect block
+   *　双重间接引用处理
 	 */
 
 	if(i == 7) {
+    //计算第一级
 		i = ((bn>>8) & 0377) - 7;
+    //不存在就创建
 		if((nb=bap[i]) == 0) {
 			if((nbp = alloc(d)) == NULL) {
 				brelse(bp);
@@ -98,17 +116,19 @@ int bn;
 			bap[i] = nbp->b_blkno;
 			bdwrite(bp);
 		} else {
+      //否则读取
 			brelse(bp);
 			nbp = bread(d, nb);
 		}
 		bp = nbp;
+    //获得地址
 		bap = bp->b_addr;
 	}
 
 	/*
 	 * normal indirect fetch
 	 */
-
+  //正常的间接引用处理流程
 	i = bn & 0377;
 	if((nb=bap[i]) == 0 && (nbp = alloc(d)) != NULL) {
 		nb = nbp->b_blkno;
@@ -117,6 +137,7 @@ int bn;
 		bdwrite(bp);
 	} else
 		brelse(bp);
+  //预读处理
 	rablock = 0;
 	if(i < 255)
 		rablock = bap[i+1];
