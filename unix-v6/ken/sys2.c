@@ -180,10 +180,13 @@ close()
 {
 	register *fp;
 
+  //获取 file struct
 	fp = getf(u.u_ar0[R0]);
 	if(fp == NULL)
 		return;
+  //设置为 null
 	u.u_ofile[u.u_ar0[R0]] = NULL;
+  //释放文件
 	closef(fp);
 }
 
@@ -195,22 +198,31 @@ seek()
 	int n[2];
 	register *fp, t;
 
+  //获取 file struct
 	fp = getf(u.u_ar0[R0]);
 	if(fp == NULL)
 		return;
+  //管道无法 seek
 	if(fp->f_flag&FPIPE) {
 		u.u_error = ESPIPE;
 		return;
 	}
 	t = u.u_arg[1];
+  //t 为模式， 0/3 文件起始位置， 1/4　当前偏移量， 2/5 文件末尾位置
+  //并且 0-2 以字节为单位， 3-5 以块为单位
+  // 0-3 增减值 u_arg[0] 为 unsigned
 	if(t > 2) {
+    //以块为单位
 		n[1] = u.u_arg[0]<<9;
 		n[0] = u.u_arg[0]>>7;
+    // unsigned 处理
 		if(t == 3)
 			n[0] =& 0777;
 	} else {
+    //以字节为单位
 		n[1] = u.u_arg[0];
 		n[0] = 0;
+    //1,2 增减值为 sign，设置高位为 -1
 		if(t!=0 && n[1]<0)
 			n[0] = -1;
 	}
@@ -218,18 +230,22 @@ seek()
 
 	case 1:
 	case 4:
+    //以当前偏移量做 seek
 		n[0] =+ fp->f_offset[0];
 		dpadd(n, fp->f_offset[1]);
 		break;
 
 	default:
+    //2,5 ，末尾为基准做 seek
 		n[0] =+ fp->f_inode->i_size0&0377;
 		dpadd(n, fp->f_inode->i_size1);
 
 	case 0:
 	case 3:
+    //起始位置，不需要任何处理
 		;
 	}
+  //更新文件的偏移量
 	fp->f_offset[1] = n[1];
 	fp->f_offset[0] = n[0];
 }
@@ -279,23 +295,30 @@ out:
 /*
  * mknod system call
  */
+//mknod 系统调用，创建目录或者设备特殊文件
 mknod()
 {
 	register *ip;
 	extern uchar;
 
+  //检测超级权限或者 suid
 	if(suser()) {
+    //路径转成 inode
 		ip = namei(&uchar, 1);
 		if(ip != NULL) {
 			u.u_error = EEXIST;
 			goto out;
 		}
 	}
+  //错误处理，可能是权限或者 namei
 	if(u.u_error)
 		return;
+  //调用　maknode 创建 inode
+  //u_arg[1] 指定 mode
 	ip = maknode(u.u_arg[1]);
 	if (ip==NULL)
 		return;
+  //设置设备编号为传进来的参数
 	ip->i_addr[0] = u.u_arg[2];
 
 out:

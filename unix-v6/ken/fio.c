@@ -10,6 +10,7 @@
 #include "../inode.h"
 #include "../reg.h"
 
+//文件相关系统调用的底层函数
 /*
  * Convert a user supplied
  * file descriptor into a pointer
@@ -17,13 +18,16 @@
  * Only task is to check range
  * of the descriptor.
  */
+//文件句柄转成实际的file struct
 getf(f)
 {
 	register *fp, rf;
 
 	rf = f;
+  //范围检查
 	if(rf<0 || rf>=NOFILE)
 		goto bad;
+  //直接取数组元素了
 	fp = u.u_ofile[rf];
 	if(fp != NULL)
 		return(fp);
@@ -46,12 +50,14 @@ int *fp;
 	register *rfp, *ip;
 
 	rfp = fp;
+  //管道特别处理
 	if(rfp->f_flag&FPIPE) {
 		ip = rfp->f_inode;
 		ip->i_mode =& ~(IREAD|IWRITE);
 		wakeup(ip+1);
 		wakeup(ip+2);
 	}
+  //递减引用，如果最后一个，关闭 inode
 	if(rfp->f_count <= 1)
 		closei(rfp->f_inode, rfp->f_flag&FWRITE);
 	rfp->f_count--;
@@ -77,7 +83,9 @@ int *ip;
 	rip = ip;
 	dev = rip->i_addr[0];
 	maj = rip->i_addr[0].d_major;
+  //最后一个引用
 	if(rip->i_count <= 1)
+    //特殊文件处理，调用设备驱动关闭函数
 	switch(rip->i_mode&IFMT) {
 
 	case IFCHR:
@@ -87,6 +95,7 @@ int *ip;
 	case IFBLK:
 		(*bdevsw[maj].d_close)(dev, rw);
 	}
+  //递减 inode 计数
 	iput(rip);
 }
 
@@ -108,6 +117,7 @@ int *ip;
 	dev = rip->i_addr[0];
   //获取设备的大编号
 	maj = rip->i_addr[0].d_major;
+  //特殊文件处理，打开设备
 	switch(rip->i_mode&IFMT) {
     //字符设备
 	case IFCHR:
