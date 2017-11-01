@@ -104,19 +104,24 @@ int *ip;
 	register dev, maj;
 
 	rip = ip;
+  //设备编号
 	dev = rip->i_addr[0];
+  //获取设备的大编号
 	maj = rip->i_addr[0].d_major;
 	switch(rip->i_mode&IFMT) {
-
+    //字符设备
 	case IFCHR:
 		if(maj >= nchrdev)
 			goto bad;
+    //执行打开
 		(*cdevsw[maj].d_open)(dev, rw);
 		break;
 
 	case IFBLK:
+    //块设备
 		if(maj >= nblkdev)
 			goto bad;
+    //执行打开
 		(*bdevsw[maj].d_open)(dev, rw);
 	}
 	return;
@@ -140,6 +145,7 @@ bad:
  * at least one of the EXEC bits must
  * be on.
  */
+//注释很清楚了，不啰嗦
 access(aip, mode)
 int *aip;
 {
@@ -148,31 +154,40 @@ int *aip;
 	ip = aip;
 	m = mode;
 	if(m == IWRITE) {
+    //写权限，检查是否挂载为 readonly
 		if(getfs(ip->i_dev)->s_ronly != 0) {
 			u.u_error = EROFS;
 			return(1);
 		}
+    //代码段，也不能写
 		if(ip->i_flag & ITEXT) {
 			u.u_error = ETXTBSY;
 			return(1);
 		}
 	}
+  //超级用户 root
 	if(u.u_uid == 0) {
-		if(m == IEXEC && (ip->i_mode & 
+    //读和写无条件赋予，但是执行权限要检查下
+    //至少有一个执行权限位是设置为1
+		if(m == IEXEC && (ip->i_mode &
 			(IEXEC | (IEXEC>>3) | (IEXEC>>6))) == 0)
 				goto bad;
 		return(0);
 	}
+  //检查用户权限
 	if(u.u_uid != ip->i_uid) {
 		m =>> 3;
+    //检查用户组权限
 		if(u.u_gid != ip->i_gid)
 			m =>> 3;
 	}
+  //有权限，返回0
 	if((ip->i_mode&m) != 0)
 		return(0);
 
 bad:
 	u.u_error = EACCES;
+  //无权限，返回1，并设置 error
 	return(1);
 }
 
@@ -220,10 +235,12 @@ ufalloc()
 	register i;
 
 	for (i=0; i<NOFILE; i++)
+    //查找 u_ofile 的一个空闲位置
 		if (u.u_ofile[i] == NULL) {
 			u.u_ar0[R0] = i;
 			return(i);
 		}
+  //打开文件太多了
 	u.u_error = EMFILE;
 	return(-1);
 }
@@ -242,16 +259,21 @@ falloc()
 	register struct file *fp;
 	register i;
 
+  //分配句柄，也就是 o_file 数组中的位置，失败就直接返回了
 	if ((i = ufalloc()) < 0)
 		return(NULL);
+  //遍历 file 数组，查找一个空闲位置
 	for (fp = &file[0]; fp < &file[NFILE]; fp++)
 		if (fp->f_count==0) {
 			u.u_ofile[i] = fp;
+      //递增计数
 			fp->f_count++;
+      //设定偏移量
 			fp->f_offset[0] = 0;
 			fp->f_offset[1] = 0;
 			return(fp);
 		}
+  //没有空闲空间了，报错 no file
 	printf("no file\n");
 	u.u_error = ENFILE;
 	return(NULL);

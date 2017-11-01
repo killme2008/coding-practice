@@ -28,39 +28,54 @@ struct inode *aip;
 	register struct inode *ip;
 
 	ip = aip;
+  //读取是0，直接返回
 	if(u.u_count == 0)
 		return;
+  //更新访问的标志位
 	ip->i_flag =| IACC;
+  //字符设备，需要调用设备驱动
 	if((ip->i_mode&IFMT) == IFCHR) {
 		(*cdevsw[ip->i_addr[0].d_major].d_read)(ip->i_addr[0]);
 		return;
 	}
-
+  //块设备有 bio 层
 	do {
+    //块的逻辑编号， 2**9 = 512
 		lbn = bn = lshift(u.u_offset, -9);
+    //偏移量
 		on = u.u_offset[1] & 0777;
+    //计算读取长度，避免超过一个块大小512
 		n = min(512-on, u.u_count);
 		if((ip->i_mode&IFMT) != IFBLK) {
+      //非特殊文件，一般文件处理
+      //不要超过文件长度
 			dn = dpcmp(ip->i_size0&0377, ip->i_size1,
 				u.u_offset[0], u.u_offset[1]);
 			if(dn <= 0)
 				return;
 			n = min(n, dn);
+      //转换为物理块编号
 			if ((bn = bmap(ip, lbn)) == 0)
 				return;
 			dn = ip->i_dev;
 		} else {
+      //dn设置为块设备编号
 			dn = ip->i_addr[0];
+      //预读块
 			rablock = bn+1;
 		}
+    //上一次读取的编号加上1是这次读取的，表示是连续读取，执行预读
 		if (ip->i_lastr+1 == lbn)
 			bp = breada(dn, bn, rablock);
 		else
-			bp = bread(dn, bn);
+			bp = bread(dn, bn); //不预读
+    //记住本次读取的编号
 		ip->i_lastr = lbn;
+    //从块缓冲区，复制到进程的虚拟地址
 		iomove(bp, on, n, B_READ);
+    //释放读取的缓冲区
 		brelse(bp);
-	} while(u.u_error==0 && u.u_count!=0);
+	} while(u.u_error==0 && u.u_count!=0); //循环处理下一个块
 }
 
 /*
@@ -100,7 +115,7 @@ struct inode *aip;
 			dn = ip->i_dev;
 		} else
 			dn = ip->i_addr[0];
-		if(n == 512) 
+		if(n == 512)
 			bp = getblk(dn, bn); else
 			bp = bread(dn, bn);
 		iomove(bp, on, n, B_WRITE);

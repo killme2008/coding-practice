@@ -36,7 +36,7 @@ struct user
 	int	*u_pdir;		/* inode of parent directory of dirp */
 	int	u_uisa[16];		/* prototype of segmentation addresses  PAR地址*/
 	int	u_uisd[16];		/* prototype of segmentation descriptors PDR地址*/
-	int	u_ofile[NOFILE];	/* pointers to file structures of open files */
+	int	u_ofile[NOFILE];	/* pointers to file structures of open files 打开的文件列表，指向 file[] 数组(file.h), 0 指向标准输入， 1 标准输出， 2 标准错误*/
 	int	u_arg[5];		/* arguments to current system call */
 	int	u_tsize;		/* text size (*64) */
 	int	u_dsize;		/* data size (*64) */

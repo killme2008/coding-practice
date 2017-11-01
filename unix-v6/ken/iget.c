@@ -237,14 +237,20 @@ maknode(mode)
 {
 	register *ip;
 
+  //分配 inode
 	ip = ialloc(u.u_pdir->i_dev);
 	if (ip==NULL)
 		return(NULL);
+  //设置更新和访问标志
 	ip->i_flag =| IACC|IUPD;
+  //创建模式
 	ip->i_mode = mode|IALLOC;
+  //引用为1
 	ip->i_nlink = 1;
+  //uid, gid 设置
 	ip->i_uid = u.u_uid;
 	ip->i_gid = u.u_gid;
+  //写入目录项
 	wdir(ip);
 	return(ip);
 }
@@ -253,19 +259,27 @@ maknode(mode)
  * Write a directory entry with
  * parameters left as side effects
  * to a call to namei.
+ * 往目录增加一个目录项
  */
 wdir(ip)
 int *ip;
 {
 	register char *cp1, *cp2;
 
+  //设置 user 结构体
+  // 当前目录编号设置为 inode 编号
 	u.u_dent.u_ino = ip->i_number;
+  // cp1 就是当前目录名
 	cp1 = &u.u_dent.u_name[0];
+  // 拷贝文件名到 cp1 后面
 	for(cp2 = &u.u_dbuf[0]; cp2 < &u.u_dbuf[DIRSIZ];)
 		*cp1++ = *cp2++;
+  //设置 io 状态，地址、标志、数目等
 	u.u_count = DIRSIZ+2;
 	u.u_segflg = 1;
 	u.u_base = &u.u_dent;
+  //写入磁盘
 	writei(u.u_pdir);
+  //namei 会递增，因此这里要递减
 	iput(u.u_pdir);
 }

@@ -8,9 +8,9 @@
 struct	file
 {
 	char	f_flag;
-	char	f_count;	/* reference count */
-	int	f_inode;	/* pointer to inode structure */
-	char	*f_offset[2];	/* read/write character pointer */
+	char	f_count;	/* reference count ，引用计数*/
+	int	f_inode;	/* pointer to inode structure 指向 inode*/
+	char	*f_offset[2];	/* read/write character pointer，读和写的文件偏移量 */
 } file[NFILE];
 
 /* flags */

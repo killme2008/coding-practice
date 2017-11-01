@@ -23,20 +23,28 @@
 iinit()
 {
 	register *cp, *bp;
-
+  //打开根磁盘
 	(*bdevsw[rootdev.d_major].d_open)(rootdev, 1);
+  //读取超级块
 	bp = bread(rootdev, 1);
+  //分配一个缓冲区
 	cp = getblk(NODEV);
 	if(u.u_error)
 		panic("iinit");
+  //拷贝超级块到缓冲区
 	bcopy(bp->b_addr, cp->b_addr, 256);
+  //释放块缓冲区
 	brelse(bp);
+  //将根磁盘注册到 mount[0]
 	mount[0].m_bufp = cp;
 	mount[0].m_dev = rootdev;
+  //释放锁
 	cp = cp->b_addr;
 	cp->s_flock = 0;
 	cp->s_ilock = 0;
+  //清除只读标记
 	cp->s_ronly = 0;
+  //拷贝时间到 time
 	time[0] = cp->s_time[0];
 	time[1] = cp->s_time[1];
 }
@@ -335,34 +343,55 @@ getfs(dev)
  * the mount table to initiate modified
  * super blocks.
  */
+//系统调用 sync
 update()
 {
 	register struct inode *ip;
 	register struct mount *mp;
 	register *bp;
 
+  //正在被更新，忽略
 	if(updlock)
 		return;
+  //加锁
 	updlock++;
+  //写入更新的超级块
+  //遍历所有挂载点
 	for(mp = &mount[0]; mp < &mount[NMOUNT]; mp++)
+    //超级块不为空的，什么情况下可能是空？
 		if(mp->m_bufp != NULL) {
 			ip = mp->m_bufp->b_addr;
+      //没有更新，或者正被锁定，或者只读，忽略
 			if(ip->s_fmod==0 || ip->s_ilock!=0 ||
 			   ip->s_flock!=0 || ip->s_ronly!=0)
 				continue;
+      //获得超级块对应的缓冲区
 			bp = getblk(mp->m_dev, 1);
+      //清除更新标记
 			ip->s_fmod = 0;
+      //更新时间戳到最新时间
 			ip->s_time[0] = time[0];
 			ip->s_time[1] = time[1];
+      //拷贝内存到块缓冲区
 			bcopy(ip, bp->b_addr, 256);
+      //写入
 			bwrite(bp);
 		}
+
+  //写入有变化的 inode 以及对应的文件
+  //遍历 inode 列表
 	for(ip = &inode[0]; ip < &inode[NINODE]; ip++)
+    //没有正在被使用
 		if((ip->i_flag&ILOCK) == 0) {
+      //加锁
 			ip->i_flag =| ILOCK;
+      //更新
 			iupdat(ip, time);
+      //释放锁
 			prele(ip);
 		}
+  //释放更新锁
 	updlock = 0;
+  //刷新块设备缓冲区，会刷新所有缓冲区到设备
 	bflush(NODEV);
 }

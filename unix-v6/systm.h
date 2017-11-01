@@ -10,6 +10,8 @@ int	*rootdir;		/* pointer to inode of root directory */
 int	cputype;		/* type of cpu =40, 45, or 70 */
 int	execnt;			/* number of processes in exec */
 int	lbolt;			/* time of day in 60th not in time */
+//启动的时候，从根磁盘超级块中读取，见 ken/alloc.c
+//在时钟中断处理中更新
 int	time[2];		/* time in sec from 1970 */
 int	tout[2];		/* time of day of next sleep */
 /*
