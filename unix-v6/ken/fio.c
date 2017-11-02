@@ -231,9 +231,12 @@ owner()
 suser()
 {
 
+  //０　是　超级用户
 	if(u.u_uid == 0)
+    //返回1
 		return(1);
 	u.u_error = EPERM;
+  //其他返回 0
 	return(0);
 }
 

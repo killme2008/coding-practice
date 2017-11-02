@@ -100,26 +100,37 @@ nice()
  * Unlink system call.
  * panic: unlink -- "cannot happen"
  */
+//删除文件
 unlink()
 {
 	register *ip, *pp;
 	extern uchar;
 
+  //获取父目录的 inode
 	pp = namei(&uchar, 2);
 	if(pp == NULL)
 		return;
+  //解锁
 	prele(pp);
+
+  //获取待删除文件的 inode
 	ip = iget(pp->i_dev, u.u_dent.u_ino);
 	if(ip == NULL)
 		panic("unlink -- iget");
+  //非超级用户，无法删除目录
 	if((ip->i_mode&IFMT)==IFDIR && !suser())
 		goto out;
+  //递减一个目录项
 	u.u_offset[1] =- DIRSIZ+2;
 	u.u_base = &u.u_dent;
 	u.u_count = DIRSIZ+2;
+  //设置目录项的 inode 编号为０
 	u.u_dent.u_ino = 0;
+  //写入目录项变更到磁盘
 	writei(pp);
+  //递减引用计数
 	ip->i_nlink--;
+  //更新
 	ip->i_flag =| IUPD;
 
 out:

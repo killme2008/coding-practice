@@ -252,40 +252,55 @@ seek()
 
 /*
  * link system call
+ * arg[0] source
+ * arg[1] target link path
  */
 link()
 {
 	register *ip, *xp;
 	extern uchar;
 
+  //获得 source inode
 	ip = namei(&uchar, 0);
 	if(ip == NULL)
 		return;
+  //太多链接了，报错
 	if(ip->i_nlink >= 127) {
 		u.u_error = EMLINK;
 		goto out;
 	}
+  //目录只能超级用户可以链接
 	if((ip->i_mode&IFMT)==IFDIR && !suser())
 		goto out;
 	/*
 	 * unlock to avoid possibly hanging the namei
 	 */
+  //解锁 namei 加的锁，注意没有递减引用，在 out 的　iput 里递减
 	ip->i_flag =& ~ILOCK;
 	u.u_dirp = u.u_arg[1];
+  //取得目标路径的 inode
 	xp = namei(&uchar, 1);
+  //已经存在，报错并递减解锁
 	if(xp != NULL) {
 		u.u_error = EEXIST;
 		iput(xp);
 	}
+  //namei 报错，跳出
 	if(u.u_error)
 		goto out;
+  //不能跨设备
 	if(u.u_pdir->i_dev != ip->i_dev) {
+    //递减目标 inode 计数
 		iput(u.u_pdir);
 		u.u_error = EXDEV;
 		goto out;
 	}
+  //将 source 路径 inode 追加到目标路径的父目录的对应表
+  //跟前面 xp = namei(&uchar, 1); 调用对应
 	wdir(ip);
+  //增加计数
 	ip->i_nlink++;
+  //更新标志
 	ip->i_flag =| IUPD;
 
 out:

@@ -165,7 +165,7 @@ eloop:
 	u.u_offset[1] =+ DIRSIZ+2;
   //递减查找的总数
 	u.u_count--;
-  //没有记录，特别处理下
+  //没有记录（可能已经被删除，参见 unlink(sys4.c)），特别处理下
 	if(u.u_dent.u_ino == 0) {
 		if(eo == 0)
 			eo = u.u_offset[1]; //eo指向空记录后的记录
@@ -191,6 +191,7 @@ eloop:
     //没有写权限，错误
 		if(access(dp, IWRITE))
 			goto out;
+    //返回的是要删除文件的父目录
 		return(dp);
 	}
 	bp = dp->i_dev;
